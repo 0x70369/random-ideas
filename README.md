@@ -1,18 +1,8 @@
-# archlinux-setups
+# random-ideas
 
-This repository is a collection of configuration files for various things in my personal Arch Linux installations.
-It is meant to be used alongside my installation guides, stored in [my personal ArchWiki page.](https://wiki.archlinux.org/title/User:0xMrRobot).
+This repository is a collection of little project that I do, but aren't big enough to have their own repository.
+Each folder represents a different category of stuff, so everything is organized.
 
-You are free to use them, but keep in mind that you may need to adapt them to your needs/systems.
+You are free to use all that's stored here, but keep in mind that you may need to adapt what you take to your needs.
 
 Contributions and feedback are always welcome!
-
-Here are some places where I got inspiration from:
-
-## `.bashrc` configuration 
-1. https://github.com/ChrisTitusTech/mybash 
-2. https://gist.github.com/anonymous/a9055e30f97bd19645c2 
-3. https://mywiki.wooledge.org/glob
-
-## sh script syntax 
-1. https://www.etalabs.net/sh_tricks.html

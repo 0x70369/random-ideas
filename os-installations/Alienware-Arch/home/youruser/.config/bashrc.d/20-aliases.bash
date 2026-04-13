@@ -13,7 +13,7 @@ alias n="nano"
 # Shell
 # -----------------------------------------------------
 alias reload-bash=". ~/.bashrc; clear; fastfetch --config examples/13"
-alias edit-alias="nano $HOME/.config/bashrc.d/20-aliases.bash"
+alias edit-alias="nano ~/.config/bashrc.d/20-aliases.bash"
 
 # -----------------------------------------------------
 # Applications
@@ -30,6 +30,9 @@ alias ytdlp-audio="yt-dlp --extract-audio --audio-format flac --audio-quality 0"
 # Protontricks ---> https://github.com/Matoking/protontricks?tab=readme-ov-file#flatpak-recommended
 alias protontricks="flatpak run com.github.Matoking.protontricks"
 alias protontricks-launch="flatpak run --command=protontricks-launch com.github.Matoking.protontricks"
+
+## https://wiki.archlinux.org/title/KDE#From_the_console
+alias launch-plasma="/lib/plasma-dbus-run-session-if-needed /bin/startplasma-wayland"
 
 # -----------------------------------------------------
 # MATLAB
