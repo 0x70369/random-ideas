@@ -2,7 +2,7 @@
 # See fstab(5) for details.
 
 # Custom /tmp entry
-# WARNING: instead of defining an entry here, edit the *tmp.mount* systemd unit instead with the options listed here
+# WARNING: instead of defining an entry here, edit the *tmp.mount* systemd unit with the options listed here
 tmpfs   /tmp    tmpfs   rw,nr_inodes=1m,size=30%,nodev,nosuid,mode=1777,relatime,x-systemd.graceful-option=usrquota,huge=within_size   0   0
 
 # tmpfs folder for storing non-essential files (like downloads). Usable by regular (non-admin) users and root
@@ -12,4 +12,4 @@ tmpfs	/temp	tmpfs	rw,nr_inodes=10k,size=69%,nodev,nosuid,gid=users,mode=1770,rel
 # tmpfs folders to speed up the system
 ## https://wiki.archlinux.org/title/Improving_performance#Relocate_files_to_tmpfs
 ## ~/.cache
-tmpfs	/home/youruser/.cache	tmpfs	rw,nr_inodes=100k,size=5%,nodev,noexec,nosuid,uid=youruser,mode=1700,relatime,x-systemd.automount,huge=within_size	0	0
+tmpfs	/home/youruser/.cache	tmpfs	rw,nr_inodes=100k,size=5%,nodev,nosuid,uid=youruser,mode=1700,relatime,x-systemd.automount,huge=within_size	0	0
