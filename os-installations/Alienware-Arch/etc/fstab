@@ -1,7 +1,8 @@
 # Static information about the filesystems.
 # See fstab(5) for details.
 
-# Custom /tmp entry (you may need to mask the *tmp.mount* systemd unit)
+# Custom /tmp entry
+# WARNING: instead of defining an entry here, edit the *tmp.mount* systemd unit instead with the options listed here
 tmpfs   /tmp    tmpfs   rw,nr_inodes=1m,size=30%,nodev,nosuid,mode=1777,relatime,x-systemd.graceful-option=usrquota,huge=within_size   0   0
 
 # tmpfs folder for storing non-essential files (like downloads). Usable by regular (non-admin) users and root
