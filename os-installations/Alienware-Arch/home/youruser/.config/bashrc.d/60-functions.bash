@@ -213,8 +213,8 @@ get_aur_helper() {
 
                 echo "Installing your chosen AUR helper..."
                 cd "/tmp" || return
-                git clone "https://aur.archlinux.org/$aur_helper-bin.git" || return
-                cd "$aur_helper-bin/" || return
+                git clone "https://aur.archlinux.org/$aur_helper.git" || return
+                cd "$aur_helper/" || return
                 makepkg -sirc || return
                 cd ~ || return
             else
