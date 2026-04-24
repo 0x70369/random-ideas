@@ -42,6 +42,7 @@ add_paths "$HOME/.local/bin" "/var/lib/flatpak/exports/bin" "$HOME/.local/share/
 # User
 # -----------------------------------------------------
 # Defining XDG directories according to: https://specifications.freedesktop.org/basedir-spec/latest/#variables
+## https://wiki.archlinux.org/title/XDG_Base_Directory
 export XDG_CACHE_HOME="$HOME/.cache"
 
 add_config_dirs() {
@@ -72,7 +73,7 @@ add_data_dirs() {
         esac
     done
 }
-#add_data_dirs "/whatever/you/want"
+add_data_dirs "/usr/local/share" "/usr/share"
 
 export XDG_DATA_HOME="$HOME/.local/share"
 
