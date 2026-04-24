@@ -117,20 +117,21 @@ alias shutdown="systemctl poweroff"
 alias reboot="systemctl reboot"
 alias suspend="systemctl suspend"
 alias hibernate="systemctl hibernate"
+alias soft-reboot="systemctl soft-reboot"
 
 # Safety settings
 alias mkdir="mkdir -vp"
 alias cp="cp -iv"
 alias mv="mv -iv"
 alias ln="ln -iv"
-alias rm="rm -iv"
+alias rm="rm -Iv"
 alias chown="chown -v"
 alias chmod="chmod -v"
 alias mount="mount -v"
 alias umount="umount -v"
 
 # Remove a directory and all files inside it
-alias rmdir="rm -riv"
+alias rmdir="rm -r"
 
 # Safer alternative to rm
 if command_exists trash; then
@@ -217,14 +218,6 @@ if [ "$(id -u)" -ne 0 ]; then
 
     if command_exists curl; then
         alias LinUtilRoot="cd /tmp; curl -fsSL https://www.christitus.com/linux | sudo sh; cd"
-    fi
-
-    if command_exists nano; then
-        alias sunano="sudo nano"
-    fi
-
-    if command_exists nvim; then
-        alias sunvim="sudo nvim"
     fi
 fi
 
