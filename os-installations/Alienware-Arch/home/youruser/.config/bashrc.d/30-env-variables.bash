@@ -5,7 +5,6 @@
 # -----------------------------------------------------
 # Some environment variables are defined in ~/.bash_profile
 
-
 # -----------------------------------------------------
 # Bash
 # -----------------------------------------------------
@@ -14,10 +13,9 @@
 export HISTCONTROL=ignorespace:ignoredups:erasedups
 
 # Expand the history size
-export HISTFILESIZE=6969
-export HISTSIZE=2666
+export HISTFILESIZE=666
+export HISTSIZE=666
 export HISTTIMEFORMAT="%A, %d/%m/%Y %T: " # add timestamp to history (this format is for the command, not the file)
-
 
 # -----------------------------------------------------
 # PATH
@@ -28,18 +26,17 @@ add_paths() {
     for dir in "$@"; do
         [ -d "$dir" ] || continue
         case ":$PATH:" in
-            *:"$dir":*)
-                ;;
-            *)
-                PATH=${PATH:+$PATH:}$dir
-                ;;
+        *:"$dir":*)
+            ;;
+        *)
+            PATH=${PATH:+$PATH:}$dir
+            ;;
         esac
     done
 }
 
 # Call the function with the directories one wishes to add to $PATH
 add_paths "$HOME/.local/bin" "/var/lib/flatpak/exports/bin" "$HOME/.local/share/flatpak/exports/bin"
-
 
 # -----------------------------------------------------
 # User
@@ -51,11 +48,11 @@ add_config_dirs() {
     for dir in "$@"; do
         [ -d "$dir" ] || continue
         case ":$XDG_CONFIG_DIRS:" in
-            *:"$dir":*)
-                ;;
-            *)
-                XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+$XDG_CONFIG_DIRS:}$dir
-                ;;
+        *:"$dir":*)
+            ;;
+        *)
+            XDG_CONFIG_DIRS=${XDG_CONFIG_DIRS:+$XDG_CONFIG_DIRS:}$dir
+            ;;
         esac
     done
 }
@@ -67,11 +64,11 @@ add_data_dirs() {
     for dir in "$@"; do
         [ -d "$dir" ] || continue
         case ":$XDG_DATA_DIRS:" in
-            *:"$dir":*)
-                ;;
-            *)
-                XDG_DATA_DIRS=${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}$dir
-                ;;
+        *:"$dir":*)
+            ;;
+        *)
+            XDG_DATA_DIRS=${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}$dir
+            ;;
         esac
     done
 }
@@ -84,7 +81,6 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
 fi
 
 export XDG_STATE_HOME="$HOME/.local/state"
-
 
 # -----------------------------------------------------
 # Applications
@@ -106,10 +102,8 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
-
 # Display a stack trace when a Rust program encounters an error
 export RUST_BACKTRACE=full
-
 
 # -----------------------------------------------------
 # Wayland
@@ -128,7 +122,6 @@ fi
 # Uncomment this if your cursor doesn't appear on your screen when using Wayland. Note: not a guaranteed fix
 ## https://wiki.archlinux.org/title/Sway#No_visible_cursor
 #export WLR_NO_HARDWARE_CURSORS=1
-
 
 # -----------------------------------------------------
 # Cleanup
