@@ -12,7 +12,6 @@
 
 # A better alternative is to use the script inside /etc/profile.d
 
-
 # Even though this file was written for Bash, >almost< everything here is POSIX-compatible,
 # so you should be able to use this anywhere with minimal friction.
 
@@ -23,7 +22,6 @@
 
 # When in doubt over the stuff configured here, >>>read the manual pages<<< (and possibly the wiki for your distro, if it exists).
 
-
 # -----------------------------------------------------
 # Functions
 # -----------------------------------------------------
@@ -31,7 +29,6 @@
 command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
-
 
 # -----------------------------------------------------
 # Customization
@@ -98,19 +95,18 @@ if command_exists bat; then
     alias cat="bat --color=always -P"
 fi
 
-
 # -----------------------------------------------------
 # System
 # -----------------------------------------------------
 # Network
 alias ping="ping -c 5"
-alias test-internet="ping -c 5 ping.archlinux.org"
-alias reset-network="sudo systemctl restart systemd-resolved.service NetworkManager.service"
+alias test-internet="ping ping.archlinux.org"
+alias reset-network="sudo systemctl restart systemd-resolved.service NetworkManager.service; sudo firewall-cmd --reload"
 alias openports="netstat -nape --inet" # Show open ports
 
 # Adjust these 2 for your system
 alias rebuild-initramfs="sudo mkinitcpio -P"
-alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
+alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; yay -aSyu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
 
 # Power options
 alias shutdown="systemctl poweroff"
@@ -150,7 +146,6 @@ alias p="ps aux | grep " # Search running processes
 if command_exists multitail; then
     alias multitail="multitail --no-repeat -c"
 fi
-
 
 # -----------------------------------------------------
 # Convenience stuff
@@ -196,18 +191,17 @@ alias count-files="for t in files links directories; do echo \`find . -type \${t
 if command_exists tar; then
     alias tar="tar --acls --selinux --xattrs --totals --checkpoint=.10000"
     # tar's "-a" parameter enables archive format autodetection.
-    
+
     # --checkpoint=.10000 makes tar print a dot on stdout after processing
     # 10000 records (by default, each record is 10 KiB), or 100 MiB.
     # This allows you to have a makeshift progress bar on your screen.
-    
+
     ## Usage: <alias> <output archive file> <input files>
     alias mktar="tar -cvaf"
-    
+
     ## Usage: <alias> <archive>
     alias untar="tar -xaf"
 fi
-
 
 # -----------------------------------------------------
 # Non-root user stuff
@@ -220,7 +214,6 @@ if [ "$(id -u)" -ne 0 ]; then
         alias LinUtilRoot="cd /tmp; curl -fsSL https://www.christitus.com/linux | sudo sh; cd"
     fi
 fi
-
 
 # -----------------------------------------------------
 # Cleanup
