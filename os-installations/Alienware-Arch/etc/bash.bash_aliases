@@ -104,10 +104,6 @@ alias test-internet="ping ping.archlinux.org"
 alias reset-network="sudo systemctl restart systemd-resolved.service NetworkManager.service; sudo firewall-cmd --reload"
 alias openports="netstat -nape --inet" # Show open ports
 
-# Adjust these 2 for your system
-alias rebuild-initramfs="sudo mkinitcpio -P"
-alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; yay -aSyu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
-
 # Power options
 alias shutdown="systemctl poweroff"
 alias reboot="systemctl reboot"
@@ -146,6 +142,15 @@ alias p="ps aux | grep " # Search running processes
 if command_exists multitail; then
     alias multitail="multitail --no-repeat -c"
 fi
+
+# Make yay only work on AUR packages
+if command_exists yay; then
+    alias yay="yay -a"
+fi
+
+# Adjust these 2 for your system
+alias rebuild-initramfs="sudo mkinitcpio -P"
+alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; sudo -u mr_robot yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
 
 # -----------------------------------------------------
 # Convenience stuff
