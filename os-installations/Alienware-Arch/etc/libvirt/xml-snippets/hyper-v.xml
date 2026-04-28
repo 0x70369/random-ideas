@@ -1,0 +1,5 @@
+<features>
+    <!-- ... -->
+    <hyperv mode="host-model"/>
+    <!-- ... -->
+</features>

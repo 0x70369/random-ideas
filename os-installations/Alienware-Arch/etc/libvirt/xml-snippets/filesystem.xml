@@ -1,0 +1,8 @@
+<filesystem type="mount" accessmode="passthrough">
+    <driver type="virtiofs"/>
+    <binary path="/lib/virtiofsd" xattr="on">
+        <cache mode="always"/>
+    </binary>
+    <source dir="/path/to/shared/directory"/>
+    <target dir="Host-Alias"/>
+</filesystem>

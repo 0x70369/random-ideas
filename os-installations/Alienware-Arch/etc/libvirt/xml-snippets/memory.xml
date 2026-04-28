@@ -1,0 +1,17 @@
+<memory unit="KiB">16777216</memory>
+<currentMemory unit="KiB">16777216</currentMemory>
+<memoryBacking>
+    <hugepages>
+        <page size="2048" unit="KiB"/>
+    </hugepages>
+    <access mode="shared"/>
+</memoryBacking>
+
+<!-- ... -->
+
+<cpu>
+    <!-- ... -->
+    <numa>
+        <cell memory="16777216" unit="KiB" memAccess="shared"/>
+    </numa>
+</cpu>

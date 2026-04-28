@@ -1,0 +1,4 @@
+<disk type="block" device="disk">
+    <driver name="qemu" type="raw" cache="none" error_policy="enospace" io="native" discard="unmap" iothread="1" detect_zeroes="unmap"/>
+    <!-- ... -->
+</disk>
