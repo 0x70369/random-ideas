@@ -1,0 +1,9 @@
+[vagrant]
+# Vagrant directories
+# directories = []
+
+# power on vagrant boxes if needed
+# power_on = true
+
+# Always suspend vagrant boxes instead of powering off
+# always_suspend = true

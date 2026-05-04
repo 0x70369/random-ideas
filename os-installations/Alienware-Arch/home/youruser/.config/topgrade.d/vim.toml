@@ -1,0 +1,3 @@
+[vim]
+# For `vim-plug`, execute `PlugUpdate!` instead of `PlugUpdate`
+# force_plug_update = true

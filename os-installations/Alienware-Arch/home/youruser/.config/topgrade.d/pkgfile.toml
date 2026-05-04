@@ -1,0 +1,6 @@
+[pkgfile]
+# Enable the pkgfile step (to update the pkgfile database).
+# Pkgfile is sometimes installed by default, but often not used and heavy to update.
+# (default: false)
+## I keep this disabled as I enabled the systemd timer that updates the db
+enable = false

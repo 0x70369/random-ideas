@@ -1,0 +1,4 @@
+[firmware]
+# Offer to update firmware; if false just check for and display available updates
+## I handle firmware updates manually
+upgrade = false

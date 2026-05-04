@@ -1,0 +1,6 @@
+[mandb]
+# Enable the mandb step (to update manual entries).
+# Mandb is updated in the background by a service on most systems by default.
+# (default: false)
+## I keep this disabled because pacman handles the relevant packages
+enable = false

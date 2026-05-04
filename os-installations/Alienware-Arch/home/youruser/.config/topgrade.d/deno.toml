@@ -1,0 +1,3 @@
+[deno]
+# Upgrade deno executable to the given version.
+# version = "stable"

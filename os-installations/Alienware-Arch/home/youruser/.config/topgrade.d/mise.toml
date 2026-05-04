@@ -1,0 +1,24 @@
+[mise]
+# Upgrades to the latest version available, bumping the version in mise.toml
+# (default: false)
+# bump = false
+
+# Number of jobs to run in parallel
+# (default: 4)
+# jobs = 4
+
+# Run interactively
+# (default: false)
+# interactive = false
+
+# Suppress non-error messages
+# (default: false)
+# quiet = false
+
+# Suppress all task output and mise non-error messages
+# (default: false)
+# silent = false
+
+# Show extra output
+# (default: false)
+# verbose = false

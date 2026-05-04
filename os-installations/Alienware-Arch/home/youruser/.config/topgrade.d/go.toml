@@ -1,0 +1,3 @@
+[go]
+# Exclude specified binaries from `gup update`
+# gup_exclude = ["kind", "pkgsite"]

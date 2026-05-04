@@ -1,0 +1,3 @@
+[viteplus]
+# Use sudo if the Vite+ directory isn't owned by the current user
+# use_sudo = true

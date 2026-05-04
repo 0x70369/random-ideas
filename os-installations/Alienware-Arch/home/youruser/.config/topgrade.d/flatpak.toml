@@ -1,0 +1,4 @@
+[flatpak]
+# Use sudo for updating the system-wide installation
+## On Arch the system-wide installation doesn't require sudo ---> https://wiki.archlinux.org/title/Flatpak
+use_sudo = false

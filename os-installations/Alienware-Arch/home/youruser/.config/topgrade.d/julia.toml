@@ -1,0 +1,7 @@
+[julia]
+# If disabled, Topgrade invokes julia with the --startup-file=no CLI option.
+#
+# This may be desirable to avoid loading outdated packages with "using" directives
+# in the startup file, which might cause the update run to fail.
+# (default: true)
+# startup_file = true
