@@ -143,14 +143,11 @@ if command_exists multitail; then
     alias multitail="multitail --no-repeat -c"
 fi
 
-# Make yay only work on AUR packages
-if command_exists yay; then
-    alias yay="yay -a"
-fi
-
 # Adjust these 2 for your system
 alias rebuild-initramfs="sudo mkinitcpio -P"
-alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; sudo -u mr_robot yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
+## Be smart, use topgrade instead of a stupidly long and convoluted alias
+#alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; sudo -u mr_robot yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
+alias upgrade-system="topgrade; sudo sync"
 
 # -----------------------------------------------------
 # Convenience stuff
