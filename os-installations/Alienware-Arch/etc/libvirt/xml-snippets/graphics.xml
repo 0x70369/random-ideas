@@ -1,9 +1,9 @@
 <graphics type="spice">
     <listen type="socket" socket="/tmp/vm_spice.sock"/>
-    <image compression="auto_glz"/>
-    <jpeg compression="auto"/>
-    <zlib compression="auto"/>
-    <playback compression="on"/>
+    <image compression="off"/>
+    <jpeg compression="never"/>
+    <zlib compression="never"/>
+    <playback compression="off"/>
 
     <!-- Use the iGPU for hardware video acceleration -->
     <!-- When not using PCI passthrough, you can select your dGPU instead, -->
