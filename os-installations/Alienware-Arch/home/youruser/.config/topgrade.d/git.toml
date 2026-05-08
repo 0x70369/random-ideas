@@ -4,7 +4,7 @@ max_concurrency = 7
 
 # Additional git repositories to pull or fetch
 repos = [
-     "~/git-repositories/*/"
+     "~/Projetos/git-repositories/*/"
 ]
 
 # Set to `false` to skip pulling/fetching the predefined git repos
