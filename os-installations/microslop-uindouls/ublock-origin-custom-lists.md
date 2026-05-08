@@ -1,7 +1,7 @@
 1. [oisd](https://oisd.nl/)
 
 2. [Actually Legitimate URL Shortener Tool](https://github.com/DandelionSprout/adfilt/discussions/163)
-* https://raw.githubusercontent.com/DandelionSprout/adfilt/master/LegitimateURLShortener.txt
+* [direct link to the blocklist](https://raw.githubusercontent.com/DandelionSprout/adfilt/master/LegitimateURLShortener.txt)
 
 3. [Anti-paywall filters](https://github.com/liamengland1/miscfilters)
 
