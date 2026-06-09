@@ -215,6 +215,10 @@ if [ "$(id -u)" -ne 0 ]; then
     if command_exists curl; then
         alias LinUtilRoot="cd /tmp; curl -fsSL https://www.christitus.com/linux | sudo sh; cd"
     fi
+
+    if command_exists flatpak; then
+        alias flatpak="flatpak --user"
+    fi
 fi
 
 # -----------------------------------------------------
