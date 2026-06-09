@@ -1,18 +1,12 @@
 #!/bin/env sh
 
-## https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Example_with_systemd
-## https://wiki.archlinux.org/title/User:0xMrRobot/Alienware_m16_R1#windows_VM_with_QEMU/KVM_and_GPU_passthrough
-## https://wiki.archlinux.org/title/Libvirt#Hooks
-
 OBJECT="$1"
 OPERATION="$2"
 
 case "$OBJECT" in
-    "win11")
+    "fedora")
         case "$OPERATION" in
             prepare)
-                modprobe -s kvmfr
-        
                 systemctl set-property --runtime -- system.slice AllowedCPUs=8-23
                 systemctl set-property --runtime -- user.slice AllowedCPUs=8-23
                 systemctl set-property --runtime -- init.scope AllowedCPUs=8-23
@@ -22,14 +16,17 @@ case "$OBJECT" in
                 systemctl set-property --runtime -- system.slice AllowedCPUs=0-31
                 systemctl set-property --runtime -- user.slice AllowedCPUs=0-31
                 systemctl set-property --runtime -- init.scope AllowedCPUs=0-31
-
-                modprobe -sr kvmfr
                 ;;
         
-            *) exit 0 ;;
+            *)
+                exit 0
+                ;;
 
         esac
         ;;
-
-    *) exit 0 ;;
+        
+    *)
+        exit 0
+        ;;
+    
 esac
