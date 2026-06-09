@@ -210,7 +210,6 @@ fi
 # -----------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
     alias root="sudo -i"
-    alias sucat="sudo cat"
 
     if command_exists curl; then
         alias LinUtilRoot="cd /tmp; curl -fsSL https://www.christitus.com/linux | sudo sh; cd"
