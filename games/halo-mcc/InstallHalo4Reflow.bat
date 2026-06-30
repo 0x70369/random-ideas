@@ -40,7 +40,7 @@ call :CHECK_STATUS
 
 echo.
 echo ==========================================
-echo Mod Manager
+echo Halo 4 Reflow Mod Manager
 echo ==========================================
 echo Current mod status: !MOD_STATUS!
 echo.
