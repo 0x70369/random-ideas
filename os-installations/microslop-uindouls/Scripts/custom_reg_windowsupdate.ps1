@@ -34,7 +34,8 @@ Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsU
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferFeatureUpdates" "REG_DWORD" "1"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferFeatureUpdatesPeriodInDays" "REG_DWORD" "0x16d" # 365 in base 16
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferQualityUpdates" "REG_DWORD" "1"
-Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferQualityUpdatesPeriodInDays" "REG_DWORD" "4"
+# Delay quality updates for 3 weeks and then push them to Saturdays
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferQualityUpdatesPeriodInDays" "REG_DWORD" "0x19" # 25 in base 16
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferUpgrade" "REG_DWORD" "1"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferUpgradePeriod" "REG_DWORD" "1"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DisableWUfBSafeguards" "REG_DWORD" "0"
@@ -55,7 +56,8 @@ Write-Host "--------------------------------------"
 
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "AllowAutoWindowsUpdateDownloadOverMeteredNetwork" "REG_DWORD" "0"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "DeferFeatureUpdatesPeriodInDays" "REG_DWORD" "0x16d" # 365 in base 16
-Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "DeferQualityUpdatesPeriodInDays" "REG_DWORD" "4"
+# Delay quality updates for 3 weeks and then push them to Saturdays
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "DeferQualityUpdatesPeriodInDays" "REG_DWORD" "0x19" # 25 in base 16
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "InsiderProgramEnabled" "REG_DWORD" "0"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" "IsContinuousInnovationOptedIn" "REG_DWORD" "0"
 
