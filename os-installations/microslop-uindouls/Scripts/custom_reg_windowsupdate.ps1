@@ -49,7 +49,7 @@ Write-Host "--------------------------------------"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AllowMUUpdateService" "REG_DWORD" "1"
 # Use this setting if you want to fully control when windows updates happen
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "2"
-# Use the 3 settings below if you're setting up a computer for non-tech people lol
+# Uncomment and use the 4 settings below if you're setting up a computer for non-tech people lol
 # windows will only update itself on the last Saturday of each month
 ##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "4"
 ##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallDay" "REG_DWORD" "7"
