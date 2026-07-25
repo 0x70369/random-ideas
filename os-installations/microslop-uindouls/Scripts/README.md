@@ -5,5 +5,6 @@ Before running them, run the command below in PowerShell as admin:
 Many settings were taken from the [Chris Titus Tech's WinUtil](https://github.com/ChrisTitusTech/winutil) 
 project, others I searched throughout the web (mainly Reddit).
 
-`winutil_create_shortcut.ps1` is simply WinUtil version 24.09.12, which was the
+`winutil_create_shortcut.ps1` is modified from WinUtil version `24.09.12`, which was the
 last version to include the "Create Shortcut" button under the "Tweaks" section.
+This version resolves the `.exe`'s path at launch time, resilient to breakage due to PS updates.
