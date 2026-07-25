@@ -1,4 +1,4 @@
-These are scripts I developed to improve uindols whenever I'm forced to use it.
+These are scripts I developed to improve the slopware whenever I'm forced to use it.
 Before running them, run the command below in PowerShell as admin:
 `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
