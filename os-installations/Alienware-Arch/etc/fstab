@@ -10,4 +10,4 @@ tmpfs   /tmp    tmpfs   rw,size=69%,nodev,nosuid,mode=1777,relatime,x-systemd.gr
 tmpfs	/temp	tmpfs	rw,size=69%,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.graceful-option=usrquota,huge=within_size	0	0
 
 # tmpfs folder exclusive to the compilation of the kernel (linux-tkg)
-tmpfs   /temp   tmpfs   rw,size=44G,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.graceful-option=usrquota,x-systemd.idle-timeout=5min,huge=within_size     0       0
+tmpfs   /tmp/kernel-build   tmpfs   rw,size=44G,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.idle-timeout=5min,huge=within_size     0       0
