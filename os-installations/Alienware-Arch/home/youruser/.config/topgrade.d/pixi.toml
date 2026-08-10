@@ -1,5 +1,0 @@
-[pixi]
-# Show the release notes of the latest pixi release
-# during the pixi step
-# (default: false)
-# include_release_notes = false

@@ -3,8 +3,11 @@
 
 # Custom /tmp entry
 # WARNING: instead of defining an entry here, edit the *tmp.mount* systemd unit with the options listed here
-tmpfs   /tmp    tmpfs   rw,nr_inodes=4m,size=69%,nodev,nosuid,mode=1777,relatime,x-systemd.graceful-option=usrquota,huge=within_size   0   0
+tmpfs   /tmp    tmpfs   rw,size=69%,nodev,nosuid,mode=1777,relatime,x-systemd.graceful-option=usrquota,huge=within_size   0   0
 
 # tmpfs folder for storing non-essential files (like downloads). Usable by regular (non-admin) users and root
 ## https://wiki.archlinux.org/title/Tmpfs#Examples
-tmpfs	/temp	tmpfs	rw,nr_inodes=10k,size=69%,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.graceful-option=usrquota,huge=within_size	0	0
+tmpfs	/temp	tmpfs	rw,size=69%,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.graceful-option=usrquota,huge=within_size	0	0
+
+# tmpfs folder exclusive to the compilation of the kernel (linux-tkg)
+tmpfs   /temp   tmpfs   rw,size=44G,nodev,nosuid,gid=users,mode=1770,relatime,x-systemd.automount,x-systemd.graceful-option=usrquota,x-systemd.idle-timeout=5min,huge=within_size     0       0

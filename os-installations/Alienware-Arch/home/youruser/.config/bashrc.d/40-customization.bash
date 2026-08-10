@@ -4,8 +4,8 @@
 # Oh My Posh
 # -----------------------------------------------------
 POSH=agnoster
-
-eval "$(oh-my-posh init bash --config $HOME/.config/ohmyposh/EDM115-newline.omp.json)"
+PROMPT_COMMAND=( 'printf "\n"' "${PROMPT_COMMAND[@]}" )
+eval "$(oh-my-posh init bash --config $HOME/.config/ohmyposh/kushal.omp.json)"
 
 
 # -----------------------------------------------------
