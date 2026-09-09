@@ -1,0 +1,38 @@
+# Documentation: https://github.com/yt-dlp/yt-dlp and yt-dlp(1) man page
+
+# Always show color
+--color always
+
+# Always show a progress bar
+--progress
+
+# Use the downloaded file's last modified time in the local file
+--mtime
+
+# When extracting audio, save with the best quality possible
+--audio-quality 0
+
+# Embed all metadata and extended attributes
+--embed-thumbnail
+--embed-metadata
+--embed-chapters
+--embed-subs
+--xattrs
+
+# Always remove these SponsorBlock segments
+--sponsorblock-remove hook,interaction,intro,music_offtopic,outro,preview,selfpromo,sponsor
+
+# Linux is smart, windows is dumb
+--no-restrict-filenames
+
+# Don't redownload already downloaded shit
+--download-archive /tmp/yt-dlp_download_archive.log
+
+# Useful download formats (-f)
+## Audio only (i.e. music): bestaudio
+## General: best
+
+# Output template I most use: %(title)s.%(ext)s
+
+# Remember to extract the cookies and place them in the correct place
+--cookies ~/.cache/yt-dlp/youtube-cookies.txt
