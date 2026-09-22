@@ -1,0 +1,12 @@
+
+#!/usr/bin/env bash
+
+uki="$3"
+[[ -n "$uki" ]] || exit 0
+
+key=/root/secureboot/keys/MOK/MOK.key
+cert=/root/secureboot/keys/MOK/MOK.crt
+
+if ! sbverify --cert "$cert" "$uki" &>/dev/null; then
+    sbsign "$uki" --key "$key" --cert "$cert" --output "$uki"
+fi

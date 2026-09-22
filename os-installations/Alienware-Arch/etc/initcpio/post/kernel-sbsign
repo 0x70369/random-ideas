@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+kernel="$1"
+[[ -n "$kernel" ]] || exit 0
+
+# use already installed kernel if it exists
+[[ ! -f "$KERNELDESTINATION" ]] || kernel="$KERNELDESTINATION"
+
+key=/root/secureboot/keys/MOK/MOK.key
+cert=/root/secureboot/keys/MOK/MOK.crt
+
+if ! sbverify --cert "$cert" "$kernel" &>/dev/null; then
+    sbsign "$kernel" --key "$key" --cert "$cert" --output "$kernel"
+fi
