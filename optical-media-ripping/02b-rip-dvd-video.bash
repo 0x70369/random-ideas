@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 #
-# 02b-rip-dvd-video.bash [/dev/srX] [destination_dir]
+# 02b-rip-dvd-video.bash [device] [destination_dir]
 #
 # Extracts audio from a live-show DVD-Video into FLAC, one file per
-# chapter. Backs up the VIDEO_TS structure with dvdbackup, shows the full
-# lsdvd listing (titles, chapter counts, audio streams) and lets you pick
-# which title(s) to extract -- including more than one, e.g. when a disc
-# has the full show plus a separate instrumental-only title.
+# chapter. If no device is given, auto-detects among common optical-drive
+# paths (/dev/sr0, /dev/cdrom, etc.) -- passing a path explicitly always
+# works too. Backs up the VIDEO_TS structure with dvdbackup, shows the
+# full lsdvd listing (titles, chapter counts, audio streams) and lets you
+# pick which title(s) to extract -- including more than one, e.g. when a
+# disc has the full show plus a separate instrumental-only title.
 #
 # WHY NOT ffmpeg -f dvdvideo: that demuxer (libdvdnav/libdvdread-based
 # chapter navigation) turned out to be unreliable against a plain
@@ -19,15 +21,28 @@
 
 set -euo pipefail
 
-DEVICE="${1:-/dev/sr0}"
+completion_sound() { ffplay -nodisp -autoexit -loglevel quiet "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/outcome-success.oga" >/dev/null 2>&1; }
+
+# Common paths for an optical drive across distros/setups: /dev/sr0 is the
+# usual raw SCSI/USB name, the rest are symlinks some systems create.
+detect_device() {
+    local candidate
+    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
+        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
+    done
+    echo "/dev/sr0"  # nothing found; fall back to the old default so the
+                      # error message below stays familiar
+}
+
+DEVICE="${1:-$(detect_device)}"
 DEST="${2:-/temp/rip}"
 BACKUP_DIR="/temp"
-
-completion_sound() { ffplay -nodisp -autoexit -loglevel quiet "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/outcome-success.oga" >/dev/null 2>&1; }
 
 for cmd in dvdbackup lsdvd dvdxchap ffmpeg; do
     command -v "$cmd" >/dev/null 2>&1 || { echo "Error: '$cmd' not found." >&2; completion_sound; exit 1; }
 done
+
+[[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; exit 1; }
 
 echo "Copying the VIDEO_TS structure from $DEVICE into $BACKUP_DIR (this can take a while)..."
 sudo dvdbackup -i "$DEVICE" -M -o "$BACKUP_DIR"
@@ -67,7 +82,7 @@ for TITLE in "${TITLES[@]}"; do
     CONCAT_INPUT="${CONCAT_INPUT%|}"
 
     OUT_DIR="$DEST/title-$TITLE"
-    mkdir -vp "$OUT_DIR"
+    mkdir -p "$OUT_DIR"
     WHOLE="$OUT_DIR/whole-title.flac"
 
     echo "Extracting the whole title as one file (this can take a while)..."
@@ -75,7 +90,7 @@ for TITLE in "${TITLES[@]}"; do
 
     echo "Reading chapter timecodes with dvdxchap..."
     mapfile -t CHAPTER_STARTS < <(dvdxchap -t "$TITLE" "$DISC_DIR" | grep -oP '^CHAPTER[0-9]+=\K.*')
-    [[ "${#CHAPTER_STARTS[@]}" -gt 0 ]] || { echo "Error: dvdxchap returned no chapters for title $TITLE." >&2; exit 1; }
+    [[ "${#CHAPTER_STARTS[@]}" -gt 0 ]] || { echo "Error: dvdxchap returned no chapters for title $TITLE." >&2; completion_sound; exit 1; }
 
     echo "Splitting into ${#CHAPTER_STARTS[@]} chapter(s)..."
     for i in "${!CHAPTER_STARTS[@]}"; do

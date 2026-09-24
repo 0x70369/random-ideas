@@ -1,19 +1,32 @@
 #!/usr/bin/env bash
 #
-# 02c-rip-dvd-audio.bash [/dev/srX] [destination_dir]
+# 02c-rip-dvd-audio.bash [device] [destination_dir]
 #
 # Extracts audio from a DVD-Audio disc (AUDIO_TS) via libdvd-audio
-# (dvda-debug-info + dvda2wav), then compresses it to FLAC. Asks for
-# confirmation before extracting because this tool's MLP support is
+# (dvda-debug-info + dvda2wav), then compresses it to FLAC. If no device
+# is given, auto-detects among common optical-drive paths (/dev/sr0,
+# /dev/cdrom, etc.) -- passing a path explicitly always works too. Asks
+# for confirmation before extracting because this tool's MLP support is
 # limited -- worth checking the listing before committing.
 
 set -euo pipefail
 
-DEVICE="${1:-/dev/sr0}"
+completion_sound() { ffplay -nodisp -autoexit -loglevel quiet "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/outcome-success.oga" >/dev/null 2>&1; }
+
+# Common paths for an optical drive across distros/setups: /dev/sr0 is the
+# usual raw SCSI/USB name, the rest are symlinks some systems create.
+detect_device() {
+    local candidate
+    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
+        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
+    done
+    echo "/dev/sr0"  # nothing found; fall back to the old default so the
+                      # error message below stays familiar
+}
+
+DEVICE="${1:-$(detect_device)}"
 DEST="${2:-/temp/rip}"
 MOUNTPOINT="/temp/disc"
-
-completion_sound() { ffplay -nodisp -autoexit -loglevel quiet "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/outcome-success.oga" >/dev/null 2>&1; }
 
 for cmd in dvda-debug-info dvda2wav flac; do
     command -v "$cmd" >/dev/null 2>&1 || {
@@ -23,8 +36,10 @@ for cmd in dvda-debug-info dvda2wav flac; do
     }
 done
 
-mkdir -vp "$MOUNTPOINT" "$DEST"
-sudo mount -vo ro "$DEVICE" "$MOUNTPOINT"
+[[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; completion_sound; exit 1; }
+
+mkdir -p "$MOUNTPOINT" "$DEST"
+sudo mount -o ro "$DEVICE" "$MOUNTPOINT"
 trap 'sudo umount "$MOUNTPOINT" 2>/dev/null' EXIT
 
 AUDIO_TS_DIR="$(find "$MOUNTPOINT" -maxdepth 1 -iname AUDIO_TS -type d | head -n1)"

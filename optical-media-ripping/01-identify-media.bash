@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 #
-# 01-identify-media.bash [/dev/srX]
+# 01-identify-media.bash [device]
 #
-# Identifies the type of optical media in the drive.
+# Identifies the type of optical media in the drive. If no device is given,
+# auto-detects among common optical-drive paths (/dev/sr0, /dev/cdrom,
+# etc.) -- passing a path explicitly (including a symlink like /dev/cdrom)
+# always works too, since detection only kicks in when no argument is given.
+#
 # Prints exactly one of these tokens to stdout (for use by other scripts
 # or by yourself, e.g.: type=$(./01-identify-media.bash)):
 #
@@ -20,7 +24,18 @@ set -uo pipefail
 
 completion_sound() { ffplay -nodisp -autoexit -loglevel quiet "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/outcome-success.oga" >/dev/null 2>&1; }
 
-DEVICE="${1:-/dev/sr0}"
+# Common paths for an optical drive across distros/setups: /dev/sr0 is the
+# usual raw SCSI/USB name, the rest are symlinks some systems create.
+detect_device() {
+    local candidate
+    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
+        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
+    done
+    echo "/dev/sr0"  # nothing found; fall back to the old default so the
+                      # error message below stays familiar
+}
+
+DEVICE="${1:-$(detect_device)}"
 
 log() { echo "$*" >&2; }
 
@@ -38,6 +53,7 @@ finish() {
 
 if [[ ! -b "$DEVICE" ]]; then
     log "Error: '$DEVICE' is not a block device."
+    completion_sound
     exit 1
 fi
 
@@ -85,7 +101,7 @@ MOUNTPOINT="$(mktemp -d)"
 trap 'sudo umount "$MOUNTPOINT" 2>/dev/null; rmdir "$MOUNTPOINT" 2>/dev/null' EXIT
 
 log "Mounting $DEVICE at $MOUNTPOINT to inspect its structure..."
-if ! sudo mount -vo ro "$DEVICE" "$MOUNTPOINT" 2>/dev/null; then
+if ! sudo mount -o ro "$DEVICE" "$MOUNTPOINT" 2>/dev/null; then
     log "Could not mount (common for DVD-Video without a standard ISO9660 fs). Assuming DVD-VIDEO."
     finish "DVD-VIDEO" "02b-rip-dvd-video.bash"
 fi
