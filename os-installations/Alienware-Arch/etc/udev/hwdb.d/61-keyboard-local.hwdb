@@ -1,0 +1,42 @@
+# Alienware m16 R1 macro-key remapping
+#
+# Purpose:
+#   Map the five Alienware programmable keys (Fn+F2 through Fn+F6) from
+#   their USB HID scan codes to Linux KEY_MACRO1..KEY_MACRO5.
+#
+# Device observed on this machine:
+#   DELL Technologies Keyboard
+#   bus=0003 (USB), vendor=0D62, product=D2B0
+#
+# Scan codes observed with evtest:
+#   c0051 -> Fn+F2 -> macro1
+#   c0052 -> Fn+F3 -> macro2
+#   c0053 -> Fn+F4 -> macro3
+#   c0054 -> Fn+F5 -> macro4
+#   c0055 -> Fn+F6 -> macro5
+#
+# References:
+#   systemd keyboard hwdb format, local overrides, and Alienware mappings:
+#   https://github.com/systemd/systemd/blob/main/hwdb.d/60-keyboard.hwdb
+#
+#   Linux input event key codes (KEY_MACRO1..KEY_MACRO5):
+#   https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h
+#
+#   xkeyboard-config project (XKB/XF86 key symbol mappings):
+#   https://xkeyboard-config.freedesktop.org/
+#
+# Install as:
+#   /etc/udev/hwdb.d/61-keyboard-local.hwdb
+#
+# Reload with:
+#   sudo systemd-hwdb update
+#   sudo udevadm trigger /dev/input/eventX
+#
+# Note: replace eventX with the DELL Technologies Keyboard event device.
+
+evdev:input:b0003v0D62pD2B0*
+ KEYBOARD_KEY_c0051=macro1
+ KEYBOARD_KEY_c0052=macro2
+ KEYBOARD_KEY_c0053=macro3
+ KEYBOARD_KEY_c0054=macro4
+ KEYBOARD_KEY_c0055=macro5

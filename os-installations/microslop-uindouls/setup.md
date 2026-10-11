@@ -1,6 +1,6 @@
 1. [uindols updates in PowerShell](https://christitus.com/install-windows-update-powershell/)
 
-2. [Install winget if not already present](https://christitus.com/installing-appx-without-msstore/) (can also be done with WinUtil)
+2. [Install winget if not already present](https://christitus.com/installing-appx-without-msstore/) (can also be done with WinUtil or via the M$ store)
 
 3. [WinUtil](https://github.com/ChrisTitusTech/winutil)
 
@@ -10,7 +10,7 @@
 
 6. Change the NTP server from time.windows.com to literally anything else (like pool.ntp.org)
 
-7. [Driver Store Explorer](https://github.com/lostindark/driverstoreExplorer)
+7. [Driver Store Explorer](https://github.com/lostindark/driverstoreExplorer) (can be installed with winget)
 
 -------------------------------------------------------------------------------
 [Winget](https://github.com/microsoft/winget-cli) packages from the M$ store
