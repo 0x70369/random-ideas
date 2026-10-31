@@ -16,7 +16,7 @@ blinking = "Always"
 
 # Make sure the font you want to use is installed.
 [font]
-size = 10.0
+size = 12.0
 
 [font.bold]
 family = "JetBrains Mono Nerd Font"
@@ -52,7 +52,7 @@ program = "/bin/bash"
 ####################################################################
 
 [window]
-opacity = 0.77
+opacity = 0.69
 
 #padding.x = 10
 #padding.y = 10
@@ -63,5 +63,5 @@ decorations_theme_variant = "Dark"
 dynamic_title = true
 
 [window.dimensions]
-#lines = 42
-#columns = 117
+lines = 32
+columns = 96
