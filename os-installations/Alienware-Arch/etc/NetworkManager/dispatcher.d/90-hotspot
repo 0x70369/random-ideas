@@ -17,10 +17,10 @@ export PATH
 # Upstream connection UUIDs (usually wired profiles), separated by whitespace.
 # List them with: nmcli -f NAME,UUID,TYPE connection show
 UPSTREAM_UUIDS='
-    5679f29f-113e-4e35-8a6a-e8acccf5e84e
+    CONNECTION_UUID
 '
 # UUID printed by setup-alienware-hotspot.sh.
-HOTSPOT_UUID='760772a8-474e-411e-9f51-70ec7e1e04f8'
+HOTSPOT_UUID='HOTSPOT_UUID'
 CREDENTIAL='/etc/credstore.encrypted/alienware-hotspot-passwd'
 LOCK='/run/alienware-hotspot.lock'
 QR_UNIT='alienware-hotspot-qr.service'
@@ -117,13 +117,14 @@ show_qr() (
 
     # imv runs as the user and reads the image from stdin. With Type=exec,
     # systemd-run returns only after the file was opened, so the trap can
-    # delete it right away; RuntimeMaxSec closes the viewer automatically.
+    # delete it right away. timeout closes the viewer after QR_SECONDS and
+    # exits with 124, which SuccessExitStatus turns into a clean exit.
     # The user manager needs WAYLAND_DISPLAY in its environment, e.g. via
     # "systemctl --user import-environment WAYLAND_DISPLAY" at session start.
     stop_qr "$user"
     systemd-run --user --machine="$user@.host" --quiet --collect \
-        --unit="$QR_UNIT" -p Type=exec -p RuntimeMaxSec="$QR_SECONDS" \
-        -p StandardInput=file:"$qr_file" imv -
+        --unit="$QR_UNIT" -p Type=exec -p SuccessExitStatus=124 \
+        -p StandardInput=file:"$qr_file" timeout "$QR_SECONDS" imv -
 )
 
 # Bring the hotspot in line with the current state of the upstreams (any
