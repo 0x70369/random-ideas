@@ -10,8 +10,6 @@
 #     . "/etc/bash.bash_aliases"
 # fi
 
-# A better alternative is to use the script inside /etc/profile.d
-
 # Even though this file was written for Bash, >almost< everything here is POSIX-compatible,
 # so you should be able to use this anywhere with minimal friction.
 
@@ -44,23 +42,23 @@ fi
 # ls aliases
 if command_exists eza; then
     # For icons to be well displayed, use a nerd font
-    alias eza="eza -ah --icons=always --color=always"
+    alias eza="eza -ah --icons=auto --color=auto"
     alias ls="eza"
     alias ll="eza -l"
     alias lr="eza -R"
 
     # Recurse as a tree ==> -T
-    ## -L (level) controls how deep the tree goes
-    ### A numerical argument is required: lT x
+    ## -L (level, optional) controls how deep the tree goes
+    ### A numerical argument is required: lT -L x
     ## -l (list format) is optional
-    alias lT="eza -T -L"
+    alias lT="eza -T"
 
     # Sort by OPTION ==> -s OPTION
     alias lx="eza -ls Extension"
     alias lz="eza -ls size"
     alias ld="eza -ls date"
 else
-    alias ls="ls -Ah --color=always"
+    alias ls="ls -Ah --color=auto"
     alias ll="ls -l"
     alias lr="ls -R"
 
@@ -70,60 +68,51 @@ else
     alias ld="ls -lt"
 fi
 
-# dir aliases
-alias dir="dir -Ash --color=always"
-alias vdir="vdir -Ash --color=always"
+alias dir="dir -Ash --color=auto"
+alias vdir="vdir -Ash --color=auto"
 
-# grep aliases
-if command_exists rg; then
-    alias grep="rg -p --engine=auto"
-else
-    alias grep="grep --color=always"
-    alias fgrep="grep -F"
-    alias egrep="grep -E"
-fi
+alias grep="grep --color=auto"
+alias fgrep="grep -F"
+alias egrep="grep -E"
 
 # Clear screen for real (it does not work in Terminology)
-alias cls='echo -ne "\033c"'
+alias cls='printf "\033c"'
 
 if command_exists tldr; then
-    alias tldr="tldr --color=always"
+    alias tldr="tldr --color=auto"
 fi
 
 # cat with wings
 if command_exists bat; then
-    alias cat="bat --color=always -P"
+    alias cat="bat --color=auto -P"
 fi
 
 # -----------------------------------------------------
 # System
 # -----------------------------------------------------
 # Network
-alias ping="ping -c 5"
+alias ping="ping -c 7"
 alias test-internet="ping ping.archlinux.org"
-alias reset-network="sudo systemctl restart systemd-resolved.service NetworkManager.service; sudo firewall-cmd --reload"
-alias openports="netstat -nape --inet" # Show open ports
+alias reset-network="sudo systemctl restart systemd-resolved.service NetworkManager.service && sudo firewall-cmd --reload"
+alias openports="ss -tulpn"
 
 # Power options
-alias shutdown="systemctl poweroff"
-alias reboot="systemctl reboot"
 alias suspend="systemctl suspend"
 alias hibernate="systemctl hibernate"
 alias soft-reboot="systemctl soft-reboot"
 
 # Safety settings
-alias mkdir="mkdir -vp"
-alias cp="cp -iv"
-alias mv="mv -iv"
-alias ln="ln -iv"
-alias rm="rm -Iv"
-alias chown="chown -v"
-alias chmod="chmod -v"
-alias mount="mount -v"
-alias umount="umount -v"
+for cmd in mkdir rmdir cp mv rm ln chmod chown chgrp mount umount; do
+    alias "$cmd"="$cmd -v"
+done
+alias mkdir="mkdir -p"
+alias cp="cp -i"
+alias mv="mv -i"
+alias ln="ln -i"
+alias rm="rm -I"
 
 # Remove a directory and all files inside it
-alias rmdir="rm -r"
+alias rmd="rm -r"
 
 # Safer alternative to rm
 if command_exists trash; then
@@ -136,18 +125,16 @@ if command_exists curl; then
 fi
 
 # ps aliases
-alias ps="ps auxf"
-alias p="ps aux | grep " # Search running processes
+alias pst="ps auxf"
+alias p="\ps aux | grep " # Search running processes
 
 if command_exists multitail; then
     alias multitail="multitail --no-repeat -c"
 fi
 
-# Adjust these 2 for your system
 alias rebuild-initramfs="sudo mkinitcpio -P"
 ## Be smart, use topgrade instead of a stupidly long and convoluted alias
 #alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; sudo -u mr_robot yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
-alias upgrade-system="topgrade; sudo sync"
 
 # -----------------------------------------------------
 # Convenience stuff
@@ -160,7 +147,7 @@ alias c='clear'
 alias e='exit'
 
 # Alias for accessing the Arch Wiki offline in a terminal (suggestion by Mental Outlaw: https://www.youtube.com/watch?v=Dg2Lek-xN70&t=324s)
-# Requires the "wikiman" and "arch-wiki-docs" (or "arch-wiki-lite") packages
+# Requires the "wikiman" and "arch-wiki-docs" packages
 if command_exists wikiman; then
     alias archwiki="wikiman -s arch"
 fi
@@ -168,14 +155,9 @@ fi
 # Show current date
 alias da='date "+%Y-%m-%d %A %T %Z"'
 
-# Add an "alert" alias for long running commands.  Use like so:
+# Add an "alert" alias for long running commands. Use like so:
 #   sleep 10; alert
 alias alert='notify-send --urgency=low -i "$([ $? = 0 ] && echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&|]\s*alert$//'\'')"'
-
-alias home="cd ~"
-
-# cd into the previous directory
-alias bd='cd "$OLDPWD"'
 
 # Search files in the current folder. Usage: f <search string>
 alias f="find . | grep "
@@ -184,14 +166,14 @@ alias f="find . | grep "
 alias h="history | grep "
 
 # See if a command is aliased, a file, or a built-in command
-alias check-command="type -t"
+alias check-command="command -V"
 
 # Count all files (recursively) in the current folder
-alias count-files="for t in files links directories; do echo \`find . -type \${t:0:1} | wc -l\` \$t; done 2> /dev/null"
+alias count-files='for t in f:files l:links d:directories; do printf "%s %s\n" "$(find . -type "${t%%:*}" | wc -l)" "${t#*:}"; done 2>/dev/null'
 
 # Aliases for archives
 if command_exists tar; then
-    alias tar="tar --acls --selinux --xattrs --totals --checkpoint=.10000"
+    alias tar="tar -a --acls --selinux --xattrs --totals --checkpoint=.10000"
     # tar's "-a" parameter enables archive format autodetection.
 
     # --checkpoint=.10000 makes tar print a dot on stdout after processing
@@ -199,10 +181,10 @@ if command_exists tar; then
     # This allows you to have a makeshift progress bar on your screen.
 
     ## Usage: <alias> <output archive file> <input files>
-    alias mktar="tar -cvaf"
+    alias mktar="tar -cvf"
 
     ## Usage: <alias> <archive>
-    alias untar="tar -xaf"
+    alias untar="tar -xf"
 fi
 
 # -----------------------------------------------------
@@ -218,6 +200,9 @@ if [ "$(id -u)" -ne 0 ]; then
     if command_exists flatpak; then
         alias flatpak="flatpak --user"
     fi
+
+    # Make the shell expand aliases after sudo
+    alias sudo='sudo '
 fi
 
 # -----------------------------------------------------

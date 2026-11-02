@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/bin/env sh
 # /etc/NetworkManager/dispatcher.d/90-hotspot
 #
 # Keep a WPA3 hotspot up while at least one authorized upstream connection is
 # active, and take it down when the last one disconnects. On activation, show
 # a QR code with the Wi-Fi credentials in the active local Wayland session.
 #
-# Install as root:root, mode 0755. Requires nmcli, systemd-creds and flock;
+# Install as root:root, mode 1755. Requires nmcli, systemd-creds and flock;
 # the QR code additionally needs qrencode and imv (both optional).
 
 set -eu
@@ -17,7 +17,9 @@ export PATH
 # Upstream connection UUIDs (usually wired profiles), separated by whitespace.
 # List them with: nmcli -f NAME,UUID,TYPE connection show
 UPSTREAM_UUIDS='
-    CONNECTION_UUID
+    CONNECTION01_UUID
+    CONNECTION02_UUID
+    ...
 '
 # UUID printed by setup-alienware-hotspot.sh.
 HOTSPOT_UUID='HOTSPOT_UUID'
@@ -117,14 +119,13 @@ show_qr() (
 
     # imv runs as the user and reads the image from stdin. With Type=exec,
     # systemd-run returns only after the file was opened, so the trap can
-    # delete it right away. timeout closes the viewer after QR_SECONDS and
-    # exits with 124, which SuccessExitStatus turns into a clean exit.
+    # delete it right away; RuntimeMaxSec closes the viewer automatically.
     # The user manager needs WAYLAND_DISPLAY in its environment, e.g. via
     # "systemctl --user import-environment WAYLAND_DISPLAY" at session start.
     stop_qr "$user"
     systemd-run --user --machine="$user@.host" --quiet --collect \
-        --unit="$QR_UNIT" -p Type=exec -p SuccessExitStatus=124 \
-        -p StandardInput=file:"$qr_file" timeout "$QR_SECONDS" imv -
+        --unit="$QR_UNIT" -p Type=exec -p RuntimeMaxSec="$QR_SECONDS" \
+        -p StandardInput=file:"$qr_file" imv -
 )
 
 # Bring the hotspot in line with the current state of the upstreams (any

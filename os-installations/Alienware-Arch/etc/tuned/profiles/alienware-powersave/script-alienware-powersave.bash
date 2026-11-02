@@ -44,7 +44,7 @@ RAPL_MSR=/sys/class/powercap/intel-rapl:0
 
 apply_power_policy() {
     echo quiet > "$PLATFORM_PROFILE"
-    sleep 0.3
+    sleep 16
 
     ## MMIO
     echo 86000000 > "$RAPL_MMIO/constraint_2_power_limit_uw"
