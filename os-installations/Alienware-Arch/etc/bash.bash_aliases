@@ -108,7 +108,7 @@ done
 alias mkdir="mkdir -p"
 alias cp="cp -i"
 alias mv="mv -i"
-alias ln="ln -i"
+alias ln="ln -bi"
 alias rm="rm -I"
 
 # Remove a directory and all files inside it

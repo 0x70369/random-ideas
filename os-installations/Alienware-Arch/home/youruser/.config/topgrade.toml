@@ -1,0 +1,50 @@
+# ~/.config/topgrade.toml
+
+[misc]
+# Topgrade itself is updated by yay, like any other package
+no_self_update = true
+
+# Ask for the sudo password once, at the start, instead of in the middle of the run
+pre_sudo = true
+
+# Only send a desktop notification at the end if something failed
+notify_end = "on_failure"
+
+# Show why a step was skipped (useful to check that everything you expect is detected)
+show_skipped = true
+
+# Clean caches/old files after updating (what this does depends on each step;
+# check with `topgrade --dry-run` before enabling)
+# cleanup = true
+
+
+[linux]
+# Use yay explicitly instead of autodetecting
+arch_package_manager = "yay"
+
+# Show Arch Linux news before updating (manual interventions are announced there)
+show_arch_news = true
+
+
+[pkgfile]
+# Keep the pkgfile database up to date (used by the command-not-found hook)
+enable = true
+
+
+[firmware]
+# Offer to install firmware updates instead of only listing them
+upgrade = true
+
+
+[flatpak]
+# Use sudo for the system-wide installation (avoids a polkit dialog)
+use_sudo = true
+
+
+# Commands to run after all built-in steps.
+# Older Topgrade versions run these in alphabetical order of their names,
+# so the numeric prefixes guarantee the intended sequence in every version.
+[post_commands]
+"1. Flatpak: remove unused (user)" = "flatpak uninstall --user --unused --noninteractive"
+"2. Flatpak: remove unused (system)" = "sudo flatpak uninstall --system --unused --noninteractive"
+"3. Sync disks" = "sudo sync"
