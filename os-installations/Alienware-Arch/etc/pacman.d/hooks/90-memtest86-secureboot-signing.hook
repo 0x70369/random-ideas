@@ -8,4 +8,4 @@ Target = memtest86+-efi
 Depends = sbsigntools
 Description = Signing EFI binary with MOK...
 When = PostTransaction
-Exec = /bin/sh /usr/local/sbin/memtest86-secureboot-signing.sh
+Exec = /usr/local/sbin/memtest86-secureboot-signing.sh

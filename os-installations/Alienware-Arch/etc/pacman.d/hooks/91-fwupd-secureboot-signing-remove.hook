@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Remove
+Type = Package
+Target = fwupd-efi
+
+[Action]
+Description = Removing the signed copy of fwupd's EFI capsule loader...
+When = PreTransaction
+Exec = /bin/rm -vf /usr/lib/fwupd/efi/fwupdx64.efi.signed

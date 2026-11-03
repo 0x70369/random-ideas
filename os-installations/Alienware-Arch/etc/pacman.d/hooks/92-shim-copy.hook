@@ -5,7 +5,8 @@ Type = Package
 Target = shim-signed-bin
 
 [Action]
-Depends = coreutils
-Description = Copying shim binaries to ESP...
+Description = Copying shim binaries to the ESP...
 When = PostTransaction
-Exec = /bin/sh /usr/local/sbin/shim-setup.sh install
+Exec = /usr/local/sbin/shim-setup.sh install
+Depends = coreutils
+Depends = sbsigntools

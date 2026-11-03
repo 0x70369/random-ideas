@@ -1,11 +1,29 @@
-#!/bin/env sh
+#!/usr/bin/env sh
 
 ## https://wiki.archlinux.org/title/Environment_variables#Using_shell_initialization_files
 
-printf "\n"
-
 # This script was written for Arch Linux btw, so you may need to adapt it (package names, where to put it, etc.)
 # if you want to use it in other distros. Also, make sure that everything needed for this to work is already set up.
+
+
+# -----------------------------------------------------
+# Helper functions
+# -----------------------------------------------------
+
+# Print informational messages only in interactive shells,
+# so they don't end up in the journal when the graphical session sources /etc/profile
+msg() {
+    case $- in
+        *i*) printf '%s\n' "$*" ;;
+    esac
+}
+
+# Errors are always printed (to stderr), so they are logged even in non-interactive logins
+err() {
+    printf '%s\n' "$*" >&2
+}
+
+msg ""
 
 
 # -----------------------------------------------------
@@ -22,7 +40,7 @@ set_mesa_vk_device() {
 
     # Make sure vulkaninfo is installed
     if ! command -v vulkaninfo >/dev/null 2>&1; then
-        echo "vulkaninfo not found. Did you install it?"
+        err "vulkaninfo not found. Did you install it?"
         return 1
     fi
 
@@ -31,7 +49,7 @@ set_mesa_vk_device() {
 
     # Print an error if none are found
     if [ -z "$vk_devices" ]; then
-        echo "Failed to list Vulkan devices."
+        err "Failed to list Vulkan devices."
         return 1
     fi
 
@@ -53,12 +71,12 @@ set_mesa_vk_device() {
     for var in "$nvidia_id" "$intel_id"; do
         if [ -n "$var" ]; then
             export MESA_VK_DEVICE_SELECT="$var"
-            echo "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
+            msg "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
             break
         fi
     done
 
-    unset vk_devices nvidia_id intel_id
+    unset vk_devices nvidia_id intel_id var
 }
 set_mesa_vk_device
 
@@ -72,7 +90,7 @@ export ANV_DEBUG=video-decode,video-encode
 # Hardware Video Acceleration - VA-API
 # -----------------------------------------------------
 
-# Function to set the LIBVA_DRIVER_NAME variable dynamically 
+# Function to set the LIBVA_DRIVER_NAME variable dynamically
 ## https://wiki.archlinux.org/title/Hardware_video_acceleration#Configuring_VA-API
 # If the "libva-nvidia-driver" package isn't installed, the Nvidia GPU can't be used for VA-API.
 set_vaapi_driver() {
@@ -85,21 +103,21 @@ set_vaapi_driver() {
     case "$MESA_VK_DEVICE_SELECT" in
         10de:*)  # NVIDIA
             export LIBVA_DRIVER_NAME=nvidia
-            echo "LIBVA_DRIVER_NAME set to nvidia"
+            msg "LIBVA_DRIVER_NAME set to nvidia"
             ;;
-        
+
         8086:*)  # Intel
             export LIBVA_DRIVER_NAME=iHD
-            echo "LIBVA_DRIVER_NAME set to iHD (Intel)"
+            msg "LIBVA_DRIVER_NAME set to iHD (Intel)"
             ;;
 
         1002:*)  # AMD
             export LIBVA_DRIVER_NAME=radeonsi
-            echo "LIBVA_DRIVER_NAME set to radeonsi (AMD)"
+            msg "LIBVA_DRIVER_NAME set to radeonsi (AMD)"
             ;;
 
         *)
-            echo "Unknown or unset MESA_VK_DEVICE_SELECT. LIBVA_DRIVER_NAME not set."
+            err "Unknown or unset MESA_VK_DEVICE_SELECT. LIBVA_DRIVER_NAME not set."
             ;;
     esac
 }
@@ -115,7 +133,7 @@ export VAAPI_MPEG4_ENABLED=true
 # Hardware Video Acceleration - VDPAU
 # -----------------------------------------------------
 
-# Function to set the VDPAU_DRIVER variable dynamically 
+# Function to set the VDPAU_DRIVER variable dynamically
 ## https://wiki.archlinux.org/title/Hardware_video_acceleration#Configuring_VDPAU
 # If the "libvdpau-va-gl" package isn't installed, the Intel GPU can't be used for VDPAU
 
@@ -129,34 +147,48 @@ set_vdpau_driver() {
     case "$MESA_VK_DEVICE_SELECT" in
         10de:*)  # NVIDIA
             export VDPAU_DRIVER=nvidia
-            echo "VDPAU_DRIVER set to nvidia"
+            msg "VDPAU_DRIVER set to nvidia"
             ;;
 
         8086:*)  # Intel
             export VDPAU_DRIVER=va_gl
-            echo "VDPAU_DRIVER set to va_gl (Intel)"
+            msg "VDPAU_DRIVER set to va_gl (Intel)"
             ;;
 
         1002:*)  # AMD
             export VDPAU_DRIVER=radeonsi
-            echo "VDPAU_DRIVER set to radeonsi (AMD)"
+            msg "VDPAU_DRIVER set to radeonsi (AMD)"
             ;;
 
         *)
-            echo "Unknown or unset MESA_VK_DEVICE_SELECT. VDPAU_DRIVER not set."
+            err "Unknown or unset MESA_VK_DEVICE_SELECT. VDPAU_DRIVER not set."
             ;;
     esac
 }
 set_vdpau_driver
 
 
-printf "\n"
+# -----------------------------------------------------
+# OpenCL
+# -----------------------------------------------------
+# Nothing to set here. intel-compute-runtime and opencl-nvidia need no variables,
+# and RUSTICL_ENABLE is deliberately left unset so that opencl-mesa (rusticl)
+# stays inactive on the Intel GPU instead of duplicating intel-compute-runtime.
 
 
 # -----------------------------------------------------
 # Hardware Acceleration
 # -----------------------------------------------------
-# Enable multi-threaded OpenGL rendering in Mesa
-if [ -n "$MESA_VK_DEVICE_SELECT" ]; then
-    export mesa_glthread=true
-fi
+# Enable multi-threaded OpenGL rendering in Mesa (affects the Intel GPU only,
+# regardless of which GPU was selected for Vulkan)
+export mesa_glthread=true
+
+
+msg ""
+
+
+# -----------------------------------------------------
+# Cleanup
+# -----------------------------------------------------
+# The functions defined here should not be available beyond this file's scope.
+unset -f set_mesa_vk_device set_vaapi_driver set_vdpau_driver msg err

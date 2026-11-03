@@ -10,4 +10,4 @@ Target = edk2-shell
 Description = Copying the shell EFI file to /boot...
 Depends = coreutils
 When = PostTransaction
-Exec = /bin/cp /usr/share/edk2-shell/x64/Shell.efi /boot/shellx64.efi -fv
+Exec = /bin/cp /usr/share/edk2-shell/x64/Shell.efi /boot/shellx64.efi -vf

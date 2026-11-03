@@ -4,7 +4,7 @@ Type = Package
 Target = shim-signed-bin
 
 [Action]
-Depends = coreutils
-Description = Removing shim binaries from ESP...
+Description = Removing shim binaries from the ESP...
 When = PreTransaction
-Exec = /bin/sh /usr/local/sbin/shim-setup.sh remove
+Exec = /usr/local/sbin/shim-setup.sh remove
+Depends = coreutils

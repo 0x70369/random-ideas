@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = fwupd-efi
+
+[Action]
+Description = Signing fwupd's EFI capsule loader for Secure Boot...
+When = PostTransaction
+Exec = /usr/local/sbin/fwupd-secureboot-signing.sh
+Depends = sbsigntools
