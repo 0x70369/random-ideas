@@ -32,6 +32,7 @@ function Set-RegistryKey {
 # https://gpsearch.azurewebsites.net/#13436
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "AllowAutoWindowsUpdateDownloadOverMeteredNetwork" "REG_DWORD" "0"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferFeatureUpdates" "REG_DWORD" "1"
+# Delay "feature" updates for a year
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferFeatureUpdatesPeriodInDays" "REG_DWORD" "0x16d" # 365 in base 16
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" "DeferQualityUpdates" "REG_DWORD" "1"
 # Delay quality updates for 3 weeks and then push them to Saturdays
@@ -47,18 +48,22 @@ Write-Host "--------------------------------------"
 # Related Group Policies: https://gpsearch.azurewebsites.net/#2791
 # https://gpsearch.azurewebsites.net/#2799
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AllowMUUpdateService" "REG_DWORD" "1"
-# Use this setting if you want to fully control when windows updates happen
-Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "2"
+
+# Uncomment and use this setting if you want to fully control when windows updates happen
+##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "2"
+
 # Uncomment and use the 4 settings below if you're setting up a computer for non-tech people lol
 # windows will only update itself on the last Saturday of each month
-##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "4"
-##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallDay" "REG_DWORD" "7"
-##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallFourthWeek" "REG_DWORD" "1"
-##Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallTime" "REG_DWORD" "0x18" # 24 in base 16
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUOptions" "REG_DWORD" "4"
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallDay" "REG_DWORD" "7"
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallFourthWeek" "REG_DWORD" "1"
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "ScheduledInstallTime" "REG_DWORD" "0x18" # 24 in base 16
+
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "AUPowerManagement" "REG_DWORD" "0"
 Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "NoAutoRebootWithLoggedOnUsers" "REG_DWORD" "1"
-# If you enabled the settings above for scheduled updates, change this setting to "0"
-Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "NoAutoUpdate" "REG_DWORD" "1"
+
+# If you are using the automatic update settings, set this to 0. Otherwise, set it to 1
+Set-RegistryKey "HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" "NoAutoUpdate" "REG_DWORD" "0"
 
 Write-Host "--------------------------------------"
 
