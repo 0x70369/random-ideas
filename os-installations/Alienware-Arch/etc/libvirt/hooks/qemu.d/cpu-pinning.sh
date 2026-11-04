@@ -30,7 +30,5 @@ case "$OBJECT" in
         esac
         ;;
 
-    *)
-        exit 0
-        ;;
+    *) exit 0 ;;
 esac
