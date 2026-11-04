@@ -11,7 +11,7 @@ pre_sudo = true
 notify_end = "on_failure"
 
 # Show why a step was skipped (useful to check that everything you expect is detected)
-show_skipped = true
+show_skipped = false
 
 # Clean caches/old files after updating (what this does depends on each step;
 # check with `topgrade --dry-run` before enabling)
