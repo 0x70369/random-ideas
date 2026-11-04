@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/env sh
 
 # libvirt hook: refuse to start any VM that uses a physical drive (or partition) from the host
 # while that drive, or any of its partitions, is mounted on the host.
