@@ -3,6 +3,8 @@
 OBJECT="$1"
 OPERATION="$2"
 
+cat > /dev/null
+
 case "$OBJECT" in
     "Bosta11-bare-metal"|"Bosta10")
         case "$OPERATION" in
