@@ -1,12 +1,30 @@
+<!-- Use this code block if you are doing PCI passthrough of the GPU -->
+<!-- https://wiki.archlinux.org/title/User:0xMrRobot/Alienware_m16_R1#Configure_and_add_the_dGPU -->
 <graphics type="spice">
     <listen type="socket" socket="/tmp/vm_spice.sock"/>
     <image compression="off"/>
     <jpeg compression="never"/>
     <zlib compression="never"/>
     <playback compression="off"/>
-
     <!-- Use the iGPU for hardware video acceleration -->
     <!-- When not using PCI passthrough, you can select your dGPU instead, -->
     <!-- but don't forget to remove the dGPU from the hardware list! -->
+    <!-- Selecting the dGPU here requires running virt-manager with prime-run -->
     <gl enable="yes" rendernode="/dev/dri/by-path/pci-0000:00:02.0-render"/>
+</graphics>
+
+<!--####################################################################################-->
+
+<!-- Use this if you want hardware video acceleration with PCI passthrough -->
+<!-- https://wiki.archlinux.org/title/Libvirt#EGL_NOT_INITIALIZED:_render_node_init_failed -->
+<graphics type="spice">
+  <listen type="none"/>
+  <image compression="off"/>
+  <jpeg compression="never"/>
+  <zlib compression="never"/>
+  <playback compression="off"/>
+  <gl enable="no"/>
+</graphics>
+<graphics type="egl-headless">
+  <gl rendernode="/dev/dri/by-path/pci-0000:01:00.0-render"/>
 </graphics>
