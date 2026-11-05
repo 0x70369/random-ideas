@@ -102,14 +102,14 @@ alias hibernate="systemctl hibernate"
 alias soft-reboot="systemctl soft-reboot"
 
 # Safety settings
-for cmd in mkdir rmdir cp mv rm ln chmod chown chgrp mount umount; do
+for cmd in rmdir chmod chown chgrp mount umount; do
     alias "$cmd"="$cmd -v"
 done
-alias mkdir="mkdir -p"
-alias cp="cp -i"
-alias mv="mv -i"
-alias ln="ln -bi"
-alias rm="rm -I"
+alias mkdir="mkdir -vp"
+alias cp="cp -iv"
+alias mv="mv -iv"
+alias ln="ln -biv"
+alias rm="rm -Iv"
 
 # Remove a directory and all files inside it
 alias rmd="rm -r"
