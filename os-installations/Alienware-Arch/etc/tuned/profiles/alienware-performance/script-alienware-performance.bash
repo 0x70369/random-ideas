@@ -7,7 +7,7 @@
 # https://docs.kernel.org/userspace-api/sysfs-platform_profile.html
 ## cat /sys/firmware/acpi/platform_profile_choices
 #
-# The Alienware firmware applies platform_profile asynchronously. A 200 ms delay
+# The Alienware firmware applies platform_profile asynchronously. A 16 s delay
 # is required before RAPL writes; without it the firmware can overwrite MMIO PL1/PL2.
 #
 # Package power cap.
