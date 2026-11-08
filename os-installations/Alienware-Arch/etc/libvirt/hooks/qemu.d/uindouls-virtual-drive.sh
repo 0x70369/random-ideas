@@ -13,7 +13,7 @@
 ## https://docs.kernel.org/admin-guide/device-mapper/index.html
 ## https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/configure-uefigpt-based-hard-drive-partitions
 #
-# Requires: device-mapper (dmsetup), gptfdisk (sgdisk), dosfstools (mkfs.fat), util-linux.
+# Requires: device-mapper (dmsetup), gptfdisk (sgdisk), dosfstools (mkfs.fat), util-linux, cryptsetup.
 
 set -eu
 
@@ -27,7 +27,7 @@ target_vm="CHANGE_ME"
 windows_disk="/dev/disk/by-id/nvme-CHANGE_ME"
 
 # The VM's disk will be /dev/mapper/$mapper_name. Use this path as <source dev="..."/> in the VM's XML.
-mapper_name="windows-vm"
+mapper_name="windows-VM"
 
 # ESP used only by the VM, so the host's ESP (mounted at /boot) is never exposed to it
 esp_image="/var/lib/libvirt/images/$mapper_name-esp.img"
@@ -97,21 +97,65 @@ windows_partitions() {
     done | sort -n | cut -d ' ' -f 2
 }
 
+# Make sure the host doesn't use a Windows partition before giving it to the VM.
+# A partition can be in use without being mounted: unlocking BitLocker (cryptsetup, udisks, a file
+# manager) creates a device-mapper device on top of it, which stays open after unmounting. That device
+# would keep the partition busy (device-mapper can't claim it for the virtual disk) and holds decrypted
+# data cached on the host. Such a device is closed here if nothing uses it anymore.
+# True if the directory has at least one entry
+has_entries() {
+    for entry in "$1"/*; do
+        [ -e "$entry" ] && return 0
+    done
+    return 1
+}
+
+release_partition() {
+    part="$1"
+    dev=$(basename "$(readlink -f -- "$part")")
+
+    # Without --nodeps, lsblk also lists the devices on top of the partition (e.g. the unlocked volume)
+    case "$(lsblk --noheadings --output MOUNTPOINTS -- "$part")" in
+        *[![:space:]]*) die "$part (or its unlocked volume) is mounted on the host. Unmount it before starting $OBJECT." ;;
+    esac
+
+    for holder_path in "/sys/class/block/$dev/holders"/*; do
+        [ -e "$holder_path" ] || continue
+        holder="${holder_path##*/}"
+        name=$(cat "/sys/class/block/$holder/dm/name" 2>/dev/null) ||
+            die "$part is in use by $holder on the host. Release it before starting $OBJECT."
+        uuid=$(cat "/sys/class/block/$holder/dm/uuid" 2>/dev/null || :)
+
+        # Only encrypted volumes (BitLocker, LUKS) are closed; anything else is left to the user
+        case "$uuid" in
+            CRYPT-*) ;;
+            *) die "$part is in use by /dev/mapper/$name on the host. Remove it before starting $OBJECT." ;;
+        esac
+
+        open=$(dmsetup info --noheadings --columns --options open "$name" | tr -d '[:space:]')
+        if has_entries "/sys/class/block/$holder/holders" || [ "$open" != 0 ]; then
+            die "$part is unlocked on the host as /dev/mapper/$name and still in use. Close it before starting $OBJECT."
+        fi
+
+        cryptsetup close "$name" || die "could not close /dev/mapper/$name ($part)."
+        echo "$mapper_name: closed /dev/mapper/$name, which was left unlocked on the host ($part)." >&2
+    done
+}
+
 build() {
     [ -b "$windows_disk" ] || die "$windows_disk not found."
 
     partitions=$(windows_partitions)
     [ -n "$partitions" ] || die "no Windows partitions found on $windows_disk."
 
+    # Start from a clean state, in case a previous run was interrupted. This comes first, so a
+    # leftover virtual disk isn't mistaken for a host device using the partitions.
+    teardown
+
     # Never hand a filesystem that the host is using to the VM
     for part in $partitions; do
-        case "$(lsblk --noheadings --nodeps --output MOUNTPOINTS -- "$part")" in
-            *[![:space:]]*) die "$part is mounted on the host. Unmount it before starting $OBJECT." ;;
-        esac
+        release_partition "$part"
     done
-
-    # Start from a clean state, in case a previous run was interrupted
-    teardown
 
     sector_size=$(blockdev --getss "$windows_disk")
     ratio=$(( sector_size / 512 ))
