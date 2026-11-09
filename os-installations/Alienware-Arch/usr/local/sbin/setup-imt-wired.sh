@@ -10,6 +10,10 @@ set -eu
 
 PROFILE=${1:-'Conexão com fio IMT NE'}
 
+# Quad9, added to the DNS servers that the network announces
+QUAD9_DNS4='9.9.9.9#dns.quad9.net,149.112.112.112#dns.quad9.net'
+QUAD9_DNS6='2620:fe::fe#dns.quad9.net,2620:fe::9#dns.quad9.net'
+
 fail() {
     printf 'Error: %s\n' "$*" >&2
     exit 1
@@ -30,10 +34,15 @@ nmcli general status >/dev/null || fail 'NetworkManager is not running.'
 # MAC: captive portals usually tie the login to the MAC address, so always
 # use the adapter's own address instead of a random one.
 #
-# DNS: the portal is only reachable through the network's DNS servers, so
-# this profile takes DNS from DHCP and does not force DNS over TLS (forcing
-# it is what broke captive portals before). With the VPN up, its own DNS is
-# used.
+# DNS: the servers announced by the network (DHCP and router advertisements)
+# are kept, since the portal is only reachable through them, and Quad9 is
+# added. NetworkManager always puts manually set servers before the announced
+# ones, so Quad9 comes first in the list. systemd-resolved starts with the
+# first server and moves to the next one when it stops answering; on IMT's
+# network Quad9 doesn't answer, so it ends up on IMT's servers (opening the
+# portal can take a little longer while the queries to Quad9 time out).
+# DNS over TLS is not forced (forcing it is what broke captive portals
+# before). With the VPN up, its own DNS is used.
 #
 # Autoconnect is off: the profile is chosen by hand when at IMT.
 set -- \
@@ -43,11 +52,11 @@ set -- \
     802-3-ethernet.cloned-mac-address permanent \
     ipv4.method auto \
     ipv4.ignore-auto-dns no \
-    ipv4.dns '' \
+    ipv4.dns "$QUAD9_DNS4" \
     ipv4.dns-priority 0 \
     ipv6.method auto \
     ipv6.ignore-auto-dns no \
-    ipv6.dns '' \
+    ipv6.dns "$QUAD9_DNS6" \
     ipv6.dns-priority 0 \
     connection.dns-over-tls default \
     connection.dnssec default \

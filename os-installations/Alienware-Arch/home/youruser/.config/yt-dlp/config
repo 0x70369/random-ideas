@@ -1,7 +1,7 @@
 # Documentation: https://github.com/yt-dlp/yt-dlp and yt-dlp(1) man page
 
-# Always show color
---color always
+# ilovebees
+--color auto
 
 # Always show a progress bar
 --progress
@@ -33,10 +33,11 @@
 ## General: best
 # If these don't work, use --list-formats
 
-# Output template I most use: %(title)s.%(ext)s
-
 # Remember to extract the cookies and place them in the correct place
 #--cookies ~/.cache/yt-dlp/youtube-cookies.txt
 
 # Retry as much as needed
 --retries infinite
+
+# Output folder (/temp is a tmpfs)
+-o "/temp/%(title)s.%(ext)s"

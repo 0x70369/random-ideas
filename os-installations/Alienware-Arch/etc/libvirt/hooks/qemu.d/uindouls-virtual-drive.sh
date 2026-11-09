@@ -76,6 +76,7 @@ teardown() {
     if dmsetup info "$mapper_name" >/dev/null 2>&1; then
         dmsetup remove "$mapper_name"
     fi
+
     for file in "$state_dir/header.img" "$state_dir/footer.img" "$esp_image"; do
         detach_loops "$file"
     done
@@ -91,6 +92,7 @@ windows_partitions() {
     lsblk --list --noheadings --paths --output NAME,TYPE,START,PARTTYPE -- "$windows_disk" |
     while read -r name type start parttype; do
         case "$type" in part) ;; *) continue ;; esac
+
         case " $windows_types " in
             *" $parttype "*) echo "$start $name" ;;
         esac
@@ -185,6 +187,7 @@ build() {
     # arguments, built side by side. The sgdisk arguments go into "$@", so names with spaces stay intact.
     table="0 $mib linear $header_loop 0"
     table="$table${nl}$mib $esp_sectors linear $esp_loop 0"
+    
     set -- --clear --set-alignment=1 --disk-guid="$disk_guid" \
         --new="1:$(( mib / ratio )):$(( (mib + esp_sectors) / ratio - 1 ))" \
         --typecode=1:c12a7328-f81f-11d2-ba4b-00a0c93ec93b \

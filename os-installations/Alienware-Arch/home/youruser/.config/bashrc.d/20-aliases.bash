@@ -17,13 +17,13 @@ alias edit-alias="nano ~/.config/bashrc.d/20-aliases.bash"
 # -----------------------------------------------------
 # Applications
 # -----------------------------------------------------
-# yt-dlp aliases
-alias yt-dlp="yt-dlp --color always --progress --check-formats --embed-thumbnail --embed-metadata  --xattrs -f - -o '/temp/%(title)s.%(ext)s'"
+# yt-dlp aliases (the other options, and the output folder, are in ~/.config/yt-dlp/config)
+alias yt-dlp="yt-dlp --check-formats -f -"
 alias ytdlp-audio="yt-dlp --extract-audio --audio-format flac --audio-quality 0"
 
 # zotify aliases (although there are maintained forks of the project, there are others as well, like votify and onthespot)
 # Remember to install pipx
-#alias zotify-download="zotify --config=$HOME/.config/zotify/config.json" # senha nova: !&9caiorotunno
+#alias zotify-download="zotify --config=$HOME/.config/zotify/config.json"
 #alias edit-zotify="nano $HOME/.config/zotify/config.json" # pipx install git+https://zotify.xyz/zotify/zotify@v1.0-dev OR pipx install git+https://github.com/yodaluca23/zotify.git@v1.0-dev
 
 # Protontricks ---> https://github.com/Matoking/protontricks?tab=readme-ov-file#flatpak-recommended
@@ -49,11 +49,8 @@ alias launch-plasma="/lib/plasma-dbus-run-session-if-needed /bin/startplasma-way
 ## - https://wiki.archlinux.org/title/PRIME#Configure_applications_to_render_using_GPU
 ## - https://download.nvidia.com/XFree86/Linux-x86_64/570.153.02/README/primerenderoffload.html <--- Chapter 35 (accessed June 3rd, 2025; go to https://download.nvidia.com/XFree86/Linux-x86_64/ and navigate the tree to the latest version of the docs, or the one matching your driver's version)
 
-# Only enable this alias if the dGPU is active, so MATLAB can benefit from extra performance
-##if [[ "$LIBVA_DRIVER_NAME" = nvidia ]] && [[ "$VDPAU_DRIVER" = nvidia ]]; then
-##    alias MATLAB="env LD_PRELOAD=/lib/libstdc++.so LD_LIBRARY_PATH=/lib/xorg/modules/dri/ QT_QPA_PLATFORM=xcb prime-run /usr/local/bin/matlab -useStartupFolderPref -nosoftwareopengl"
-##    alias MATLAB="env LD_PRELOAD=/lib/libstdc++.so LD_LIBRARY_PATH=/lib/xorg/modules/dri/ QT_QPA_PLATFORM=xcb __NV_PRIME_RENDER_OFFLOAD=1 __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0 __GLX_VENDOR_LIBRARY_NAME=nvidia __VK_LAYER_NV_optimus=NVIDIA_only /usr/local/bin/matlab -useStartupFolderPref -nosoftwareopengl"
-##fi
+# Runs MATLAB on the dGPU (prime-run sets the PRIME render offload variables for that launch only)
+##alias MATLAB="env LD_PRELOAD=/lib/libstdc++.so LD_LIBRARY_PATH=/lib/xorg/modules/dri/ QT_QPA_PLATFORM=xcb prime-run /usr/local/bin/matlab -useStartupFolderPref -nosoftwareopengl"
 
 # Remember to install the packages mentioned in the sections linked above!
 # Also also in this section, if you have a Nvidia GPU: https://wiki.archlinux.org/title/MATLAB#GPU_computing

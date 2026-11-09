@@ -1,21 +1,5 @@
 # Static table lookup for hostnames.
-# See hosts(5) for details.
-
-####################################################################
-
-# The following lines are desirable for IPv4 capable hosts
-127.0.0.1        localhost
-127.0.0.1        localhost.localdomain
-
-127.0.1.1        localhost
-127.0.1.1        localhost.localdomain
-
-####################################################################
-
-# The following lines are desirable for IPv6 capable hosts
+# The hostname itself is resolved by systemd's nss-myhostname, so it isn't listed here.
+## https://wiki.archlinux.org/title/Network_configuration#Local_hostname_resolution
+127.0.0.1  localhost
 ::1        localhost
-::1        localhost.localdomain
-
-::1        ip6-localhost
-
-::1        ip6-loopback

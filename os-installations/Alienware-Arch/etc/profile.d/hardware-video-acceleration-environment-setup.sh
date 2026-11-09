@@ -68,7 +68,7 @@ set_mesa_vk_device() {
     # Set the GPU used for Vulkan
     ## Remove and/or change the order of the vendors according to your system's
     ## configuration, in order to speed up the function's execution.
-    for var in "$intel_id" "$nvidia_id"; do
+    for var in "$nvidia_id" "$intel_id"; do
         if [ -n "$var" ]; then
             export MESA_VK_DEVICE_SELECT="$var"
             msg "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
@@ -89,83 +89,16 @@ export ANV_DEBUG=video-decode,video-encode
 # -----------------------------------------------------
 # Hardware Video Acceleration - VA-API
 # -----------------------------------------------------
-
-# Function to set the LIBVA_DRIVER_NAME variable dynamically
+# LIBVA_DRIVER_NAME is deliberately left unset. libva then picks the driver from the GPU each
+# program opened: the Intel render node (i915) loads iHD, the NVIDIA one (nvidia-drm) loads
+# nvidia. Forcing a driver for the whole session breaks programs that render on the other GPU:
+# with LIBVA_DRIVER_NAME=nvidia, Chromium-based browsers (which render on the Intel GPU) decode
+# video on the NVIDIA GPU and hand the frames to the Intel one, which can't read NVIDIA's memory
+# layout, so videos freeze and show artifacts while the audio keeps playing.
 ## https://wiki.archlinux.org/title/Hardware_video_acceleration#Configuring_VA-API
-# If the "libva-nvidia-driver" package isn't installed, the Nvidia GPU can't be used for VA-API.
-set_vaapi_driver() {
-
-    # This function relies on set_mesa_vk_device, as to not conflict with vfio-pci configuration
-    ## https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Binding_vfio-pci_via_device_ID
-
-    unset LIBVA_DRIVER_NAME
-
-    case "$MESA_VK_DEVICE_SELECT" in
-        10de:*)  # NVIDIA
-            export LIBVA_DRIVER_NAME=nvidia
-            msg "LIBVA_DRIVER_NAME set to nvidia"
-            ;;
-
-        8086:*)  # Intel
-            export LIBVA_DRIVER_NAME=iHD
-            msg "LIBVA_DRIVER_NAME set to iHD (Intel)"
-            ;;
-
-        1002:*)  # AMD
-            export LIBVA_DRIVER_NAME=radeonsi
-            msg "LIBVA_DRIVER_NAME set to radeonsi (AMD)"
-            ;;
-
-        *)
-            err "Unknown or unset MESA_VK_DEVICE_SELECT. LIBVA_DRIVER_NAME not set."
-            ;;
-    esac
-}
-set_vaapi_driver
-
-# Enable MPEG4 for VA-API
-## https://docs.mesa3d.org/envvars.html#va-api-environment-variables
-## https://wiki.archlinux.org/title/Hardware_video_acceleration#VA-API_drivers
-export VAAPI_MPEG4_ENABLED=true
-
-
-# -----------------------------------------------------
-# Hardware Video Acceleration - VDPAU
-# -----------------------------------------------------
-
-# Function to set the VDPAU_DRIVER variable dynamically
-## https://wiki.archlinux.org/title/Hardware_video_acceleration#Configuring_VDPAU
-# If the "libvdpau-va-gl" package isn't installed, the Intel GPU can't be used for VDPAU
-
-set_vdpau_driver() {
-
-    # This function relies on set_mesa_vk_device, as to not conflict with vfio-pci configuration
-    ## https://wiki.archlinux.org/title/PCI_passthrough_via_OVMF#Binding_vfio-pci_via_device_ID
-
-    unset VDPAU_DRIVER
-
-    case "$MESA_VK_DEVICE_SELECT" in
-        10de:*)  # NVIDIA
-            export VDPAU_DRIVER=nvidia
-            msg "VDPAU_DRIVER set to nvidia"
-            ;;
-
-        8086:*)  # Intel
-            export VDPAU_DRIVER=va_gl
-            msg "VDPAU_DRIVER set to va_gl (Intel)"
-            ;;
-
-        1002:*)  # AMD
-            export VDPAU_DRIVER=radeonsi
-            msg "VDPAU_DRIVER set to radeonsi (AMD)"
-            ;;
-
-        *)
-            err "Unknown or unset MESA_VK_DEVICE_SELECT. VDPAU_DRIVER not set."
-            ;;
-    esac
-}
-set_vdpau_driver
+# To decode on the NVIDIA GPU on purpose, set it for that program only, pointing to its render node:
+## ls -l /dev/dri/by-path/
+## LIBVA_DRIVER_NAME=nvidia mpv --hwdec=vaapi --vaapi-device=/dev/dri/renderD129 video.mkv
 
 
 # -----------------------------------------------------
@@ -191,4 +124,4 @@ msg ""
 # Cleanup
 # -----------------------------------------------------
 # The functions defined here should not be available beyond this file's scope.
-unset -f set_mesa_vk_device set_vaapi_driver set_vdpau_driver msg err
+unset -f set_mesa_vk_device msg err

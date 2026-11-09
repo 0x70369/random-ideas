@@ -24,7 +24,7 @@ if [ -d "$HOME"/.config/bashprofile.d ]; then
 
     unset file
 else
-    mkdir -p "$HOME/.config/bashprofile.d" >/dev/null >&2
+    mkdir -vp "$HOME/.config/bashprofile.d"
     echo "The '~/.config/bashprofile.d' directory was created. You can customize your session by editing files there."
 fi
 

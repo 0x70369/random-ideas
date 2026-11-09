@@ -9,9 +9,6 @@
 # INIT
 # -----------------------------------------------------
 
-# If not running interactively, don't do anything
-[[ $- != *i* ]] && return
-
 # Prevent doublesourcing
 if [[ -z "${BASHRCSOURCED}" ]] ; then
     BASHRCSOURCED="Y"

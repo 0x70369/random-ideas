@@ -7,5 +7,5 @@ Target = fwupd-efi
 [Action]
 Description = Signing fwupd's EFI capsule loader for Secure Boot...
 When = PostTransaction
-Exec = /usr/local/sbin/fwupd-secureboot-signing.sh
+Exec = /usr/local/sbin/sbsign-mok.sh /usr/lib/fwupd/efi/fwupdx64.efi /usr/lib/fwupd/efi/fwupdx64.efi.signed
 Depends = sbsigntools

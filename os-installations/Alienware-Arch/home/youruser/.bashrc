@@ -7,6 +7,10 @@
 # DON'T CHANGE THIS FILE
 # You can define your custom configuration by adding/editing files in ~/.config/bashrc.d
 
+# Everything below is for interactive shells only. Login shells source this file too
+# (~/.bash_profile does), including the non-interactive one that starts the graphical session.
+[[ $- != *i* ]] && return
+
 # Source user's custom configuration
 if [ -d "$HOME"/.config/bashrc.d ]; then
     for file in "$HOME"/.config/bashrc.d/*.bash; do
@@ -19,7 +23,7 @@ if [ -d "$HOME"/.config/bashrc.d ]; then
 
     unset file
 else
-    mkdir -p "$HOME/.config/bashrc.d" >/dev/null >&2
+    mkdir -vp "$HOME/.config/bashrc.d"
     echo "The '~/.config/bashrc.d' directory was created. You can customize your shell by editing files there."
 fi
 

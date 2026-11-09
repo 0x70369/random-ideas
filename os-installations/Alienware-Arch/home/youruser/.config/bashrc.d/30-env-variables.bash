@@ -27,19 +27,6 @@ add_paths() {
 add_paths "$HOME/.local/bin" "/var/lib/flatpak/exports/bin" "$HOME/.local/share/flatpak/exports/bin"
 
 # -----------------------------------------------------
-# Wayland
-# -----------------------------------------------------
-# Define the mouse cursor theme used in Wayland; the cursor theme must be saved inside ~/.local/share/icons
-if [ "$XDG_SESSION_TYPE" == "wayland" ]; then
-    export XCURSOR_THEME=Bibata-Modern-Ice
-    export XCURSOR_SIZE=32
-fi
-
-# Uncomment this if your cursor doesn't appear on your screen when using Wayland. Note: not a guaranteed fix
-## https://wiki.archlinux.org/title/Sway#No_visible_cursor
-#export WLR_NO_HARDWARE_CURSORS=1
-
-# -----------------------------------------------------
 # Cleanup
 # -----------------------------------------------------
 # The functions defined here should not be available beyond this file's scope.

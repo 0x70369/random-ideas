@@ -1,13 +1,9 @@
 ## https://wiki.archlinux.org/title/PRIME#NVIDIA
+## https://download.nvidia.com/XFree86/Linux-x86_64/latest/README/dynamicpowermanagement.html
 
-# Enable runtime PM for NVIDIA VGA/3D controller devices on driver bind
-ACTION=="bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000", TEST=="power/control", ATTR{power/control}="auto"
-ACTION=="bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030200", TEST=="power/control", ATTR{power/control}="auto"
+# Runtime PM for the NVIDIA GPU (VGA 0x030000 or 3D 0x030200) and its HDMI audio (0x040300), on
+# add (also after a PCI rescan, e.g. when alienware-battery brings the dGPU back) and driver bind
+ACTION=="add|bind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000|0x030200|0x040300", TEST=="power/control", ATTR{power/control}="auto"
 
-# Disable runtime PM for NVIDIA VGA/3D controller devices on driver unbind
-ACTION=="unbind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000", TEST=="power/control", ATTR{power/control}="on"
-ACTION=="unbind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030200", TEST=="power/control", ATTR{power/control}="on"
-
-# Enable runtime PM for NVIDIA VGA/3D controller devices on adding device
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000", TEST=="power/control", ATTR{power/control}="auto"
-ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030200", TEST=="power/control", ATTR{power/control}="auto"
+# No runtime PM for the GPU without its driver (e.g. while handed to vfio-pci)
+ACTION=="unbind", SUBSYSTEM=="pci", ATTR{vendor}=="0x10de", ATTR{class}=="0x030000|0x030200", TEST=="power/control", ATTR{power/control}="on"

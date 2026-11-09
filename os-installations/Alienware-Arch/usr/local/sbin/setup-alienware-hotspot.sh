@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/env sh
 # Create or update the WPA3 hotspot profile and its encrypted password.
 # Activation is left to the NetworkManager dispatcher script (90-hotspot).
 
@@ -15,9 +15,11 @@ fail() {
 }
 
 [ "$(id -u)" -eq 0 ] || fail 'Run this script as root.'
+
 for tool in nmcli systemd-creds uuidgen chattr; do
     command -v "$tool" >/dev/null || fail "Missing command: $tool"
 done
+
 nmcli general status >/dev/null || fail 'NetworkManager is not running.'
 
 if [ -L "$CREDENTIAL" ] || { [ -e "$CREDENTIAL" ] && [ ! -f "$CREDENTIAL" ]; }; then

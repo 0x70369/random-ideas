@@ -53,10 +53,10 @@ if command_exists eza; then
     ## -l (list format) is optional
     alias lT="eza -T"
 
-    # Sort by OPTION ==> -s OPTION
+    # Sort by OPTION ==> -s OPTION ("lm", not "ld", so the linker isn't shadowed)
     alias lx="eza -ls Extension"
     alias lz="eza -ls size"
-    alias ld="eza -ls date"
+    alias lm="eza -ls modified"
 else
     alias ls="ls -Ah --color=auto"
     alias ll="ls -l"
@@ -65,7 +65,7 @@ else
     # Sort by OPTION
     alias lx="ls -lX"
     alias lz="ls -lS"
-    alias ld="ls -lt"
+    alias lm="ls -lt"
 fi
 
 alias dir="dir -Ash --color=auto"
@@ -120,13 +120,14 @@ if command_exists trash; then
 fi
 
 # Chris Titus Tech's Linux Utility: https://github.com/ChrisTitusTech/linutil
+# It asks for sudo by itself when a task needs it.
 if command_exists curl; then
-    alias LinUtil="cd /tmp; curl -fsSL https://www.christitus.com/linux | sh; cd"
+    alias LinUtil="curl -fsSL https://www.christitus.com/linux | sh"
 fi
 
 # ps aliases
 alias pst="ps auxf"
-alias p="\ps aux | grep " # Search running processes
+alias p="pgrep -af" # Search running processes by name or command line
 
 if command_exists multitail; then
     alias multitail="multitail --no-repeat -c"
@@ -172,30 +173,24 @@ alias check-command="command -V"
 alias count-files='for t in f:files l:links d:directories; do printf "%s %s\n" "$(find . -type "${t%%:*}" | wc -l)" "${t#*:}"; done 2>/dev/null'
 
 # Aliases for archives
-if command_exists tar; then
-    alias tar="tar -a --acls --selinux --xattrs --totals --checkpoint=.10000"
-    # tar's "-a" parameter enables archive format autodetection.
+alias tar="tar -a --acls --selinux --xattrs --totals --checkpoint=.10000"
+# tar's "-a" parameter enables archive format autodetection.
 
-    # --checkpoint=.10000 makes tar print a dot on stdout after processing
-    # 10000 records (by default, each record is 10 KiB), or 100 MiB.
-    # This allows you to have a makeshift progress bar on your screen.
+# --checkpoint=.10000 makes tar print a dot on stdout after processing
+# 10000 records (by default, each record is 10 KiB), or 100 MiB.
+# This allows you to have a makeshift progress bar on your screen.
 
-    ## Usage: <alias> <output archive file> <input files>
-    alias mktar="tar -cvf"
+## Usage: <alias> <output archive file> <input files>
+alias mktar="tar -cvf"
 
-    ## Usage: <alias> <archive>
-    alias untar="tar -xf"
-fi
+## Usage: <alias> <archive>
+alias untar="tar -xf"
 
 # -----------------------------------------------------
 # Non-root user stuff
 # -----------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
     alias root="sudo -i"
-
-    if command_exists curl; then
-        alias LinUtilRoot="cd /tmp; curl -fsSL https://www.christitus.com/linux | sudo sh; cd"
-    fi
 
     if command_exists flatpak; then
         alias flatpak="flatpak --user"
