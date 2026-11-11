@@ -1,7 +1,5 @@
 # alienware.myfrag: fragmento fixo do linux-tkg para o Alienware m16 R1
 #
-# Salve esse arquivo em /opt/linux-tkg
-#
 # Base: linux-tkg-config/7.2/config.x86_64 (= configuração do `linux` do Arch), depois do
 # `make localmodconfig` do modprobed-db. Aplicado pelo merge_config.sh -m e depois olddefconfig.
 # Validado contra o Kconfig do 7.2.15: cada linha abaixo fica com o valor pedido.
@@ -513,19 +511,29 @@ CONFIG_UBSAN_ENUM=y
 # 6. Embutido → módulo (§0, §19, §33.2, §33.3)
 # =====================================================================================
 
-# Ficam embutidas: BINFMT_SCRIPT, FW_LOADER, EFI_VARS_PSTORE (crashes desde o boot) e TCP_CONG_CUBIC (o padrão
-# do TCP precisa ser embutido; como módulo, o kernel cai para o Reno). As demais embutidas são selecionadas por
+# Ficam embutidas: BINFMT_SCRIPT, FW_LOADER, EFI_VARS_PSTORE (crashes desde o boot), TCP_CONG_CUBIC (o padrão
+# do TCP precisa ser embutido; como módulo, o kernel cai para o Reno) e EFIVAR_FS (o systemd do initramfs lê a
+# variável EFI HibernateLocation para achar a imagem de hibernação, sem resume= na linha de comando). As demais embutidas são selecionadas por
 # opções embutidas e não podem mudar.
 #
+CONFIG_EFIVAR_FS=y
+# Voltaram para y depois do 1º build (2026-11-11):
+# - DRM, DRM_SIMPLEDRM e FB: tela desde o início do kernel (erros e panics antes do initramfs aparecem) e o
+#   prompt do LUKS sem depender do MODULES; o i915 e o nvidia_drm carregam o núcleo DRM em todo boot de qualquer forma
+# - ACPI_THERMAL: Kconfig "HIGHLY recommended"; como módulo, as zonas térmicas do firmware só valiam depois do LUKS
+# - RTC_DRV_CMOS: relógio certo desde o boot (RTC_HCTOSYS), inclusive no journal do initramfs
+CONFIG_DRM=y
+CONFIG_DRM_SIMPLEDRM=y
+CONFIG_FB=y
+CONFIG_ACPI_THERMAL=y
+CONFIG_RTC_DRV_CMOS=y
+#
 # Viraram módulo no menuconfig do 1º build (2026-11-11), por escolha do usuário. Consequências conferidas:
-# - DRM, SIMPLEDRM e FB: o simpledrm precisa estar no MODULES do mkinitcpio para o prompt do LUKS aparecer
 # - MQ_IOSCHED_DEADLINE: o kernel não o carrega sozinho; uma regra do udev o pede para discos USB e SD
-# - RTC_DRV_CMOS: o RTC_HCTOSYS acerta o relógio quando o módulo registra o rtc0 (drivers/rtc/class.c)
 # - CONNECTOR: o PROC_EVENTS (eventos de fork/exec/exit por netlink) exige y e some
 # - NET_SCH_FQ_CODEL: o sysctl net.core.default_qdisc do systemd (50-default.conf) o carrega no boot
 CONFIG_IKCONFIG=m
 CONFIG_IKHEADERS=m
-CONFIG_ACPI_THERMAL=m
 CONFIG_MQ_IOSCHED_DEADLINE=m
 CONFIG_PACKET=m
 CONFIG_PACKET_DIAG=m
@@ -536,17 +544,12 @@ CONFIG_INPUT_EVDEV=m
 CONFIG_SERIO=m
 CONFIG_HWMON=m
 CONFIG_WATCHDOG_CORE=m
-CONFIG_DRM=m
-CONFIG_DRM_SIMPLEDRM=m
-CONFIG_FB=m
 CONFIG_BACKLIGHT_CLASS_DEVICE=m
 CONFIG_HID=m
 CONFIG_USB=m
 CONFIG_LEDS_CLASS=m
 CONFIG_EDAC=m
 CONFIG_EDAC_GHES=m
-CONFIG_RTC_DRV_CMOS=m
-CONFIG_EFIVAR_FS=m
 CONFIG_UNICODE=m
 CONFIG_CRYPTO_DRBG=m
 CONFIG_CRYPTO_JITTERENTROPY=m
@@ -824,9 +827,10 @@ CONFIG_FIRMWARE_EDID=y
 # CONFIG_SND_SOC_SOF_TIGERLAKE is not set
 CONFIG_SND_SOC_SOF_ALDERLAKE=m
 
-# USB: impressora local (a de casa é de rede, §8) e mensagens detalhadas do usb-storage para depurar pendrives
+# USB: impressora local (a de casa é de rede, §8). O USB_STORAGE_DEBUG, ligado no menuconfig, saiu: grava no
+# journal uma mensagem por comando enviado ao pendrive, sem como desligar (drivers/usb/storage/debug.c).
 CONFIG_USB_PRINTER=m
-CONFIG_USB_STORAGE_DEBUG=y
+# CONFIG_USB_STORAGE_DEBUG is not set
 
 # Gatilhos de LED: sem MTD aqui; o de CPU acende LEDs por atividade de cada núcleo e não há LED para isso
 # CONFIG_LEDS_TRIGGER_MTD is not set

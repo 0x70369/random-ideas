@@ -510,7 +510,7 @@ Autosuspend: Bluetooth e webcam ficam com `power/control=auto`; o teclado intern
 
 ```text
 HOOKS=(base systemd autodetect microcode modconf keyboard sd-vconsole block sd-encrypt filesystems fsck)
-MODULES=(zstd lz4 simpledrm)
+MODULES=(zstd lz4)
 COMPRESSION="zstd"
 COMPRESSION_OPTIONS=(-19 --long -v)
 MODULES_DECOMPRESS="yes"
@@ -519,7 +519,6 @@ MODULES_DECOMPRESS="yes"
 - o hook `systemd` substitui o `udev`; `sd-encrypt` abre o LUKS
 - sem o hook `kms` (33.3)
 - `zstd` e `lz4` estão em `MODULES` pelo zswap e pela hibernação; como `CRYPTO_ZSTD`, `CRYPTO_LZ4` e `CRYPTO_LZO` são embutidos nos três kernels, as entradas não têm efeito (33.3)
-- `simpledrm`: módulo no `linux-tkg`, onde nenhum hook o incluiria; embutido no `linux` e no `linux-zen`, onde a entrada não tem efeito
 - o mkinitcpio já acrescenta `-T0` às opções do zstd; com `MODULES_DECOMPRESS`, módulos e firmware entram descomprimidos e são comprimidos junto com a imagem
 - o kernel próprio só tem o descompressor zstd de initramfs (33.3)
 
@@ -762,7 +761,7 @@ Found a Intel PCH TCO device, Version=6, TCOBASE=0x0400, heartbeat=30 sec, noway
 - Tjmax 100 °C, sem offset: o Tcc Offset Lock do firmware trava o registro, então ferramentas do sistema não alteram o ponto de throttling
 - sem thermal emulation
 - não há ventoinha ACPI (`PNP0C0B` ou `INTC1048`): as ventoinhas vêm do Dell SMM e do WMI (23). `ACPI_FAN` fica como módulo só porque o `INT340X_THERMAL` o seleciona
-- `ACPI_THERMAL` como módulo (o Kconfig o chama de "HIGHLY recommended"; carregado pelo udev logo no boot, e a proteção térmica do próprio processador vale antes disso)
+- `ACPI_THERMAL` embutido (o Kconfig o chama de "HIGHLY recommended"; como módulo, as zonas térmicas do firmware só valeriam depois do prompt do LUKS)
 - thermald desabilitado (32)
 
 ## 23. HWMON
@@ -1145,15 +1144,15 @@ Maximizar m em vez de y. Usar y quando for necessário cedo, o Kconfig exigir, h
 **Módulos no `linux-tkg`** (toda opção tristate que pode ser módulo sem perder função), além dos de 33.3:
 
 - `FUSE_FS`, `AUTOFS_FS`, `CONFIGFS_FS`, `BINFMT_MISC`, `EXT4_FS`, `NTFS_FS`, `UNICODE`
-- `ACPI_AC`/`_BATTERY`/`_BUTTON`, `ACPI_THERMAL`, `ACPI_FAN`
-- `USB`, `USB_SERIAL`, `HID`, `SERIO`, `INPUT_EVDEV`, `INPUT_LEDS`, `LEDS_CLASS`, `BACKLIGHT_CLASS_DEVICE`, `HWMON`, `WATCHDOG_CORE`, `EDAC`/`EDAC_GHES`, `RTC_DRV_CMOS`, `EXTCON`, `DMI_SYSFS`, `PCI_STUB`, `HW_RANDOM`, os heaps de dma-buf
+- `ACPI_AC`/`_BATTERY`/`_BUTTON`, `ACPI_FAN`
+- `USB`, `USB_SERIAL`, `HID`, `SERIO`, `INPUT_EVDEV`, `INPUT_LEDS`, `LEDS_CLASS`, `BACKLIGHT_CLASS_DEVICE`, `HWMON`, `WATCHDOG_CORE`, `EDAC`/`EDAC_GHES`, `EXTCON`, `DMI_SYSFS`, `PCI_STUB`, `HW_RANDOM`, os heaps de dma-buf
 - `SCSI`/`BLK_DEV_SD`, `I2C_DESIGNWARE_*`, `X86_MSR`/`X86_CPUID`
 - escalonadores de E/S `MQ_IOSCHED_DEADLINE` (8), BFQ e Kyber; os governors genéricos do cpufreq
 - rede: `PACKET`, `PACKET_DIAG`, `UNIX_DIAG`, `NET_SCH_FQ_CODEL` (6), `NET_DROP_MONITOR`, `CONNECTOR` (o `PROC_EVENTS` some, e nenhum programa o usa)
 - criptografia: AES, CBC, CTR, CTS, ECDH, MD5, SHA-1, SHA-3, BLAKE2b, xxHash, CRC32c, `CRYPTO_DRBG`, `CRYPTO_JITTERENTROPY`, `CRYPTO_PCRYPT`, `CRYPTO_LZ4HC`. O KDE Wallet, o gnome-keyring, o GPG e afins criptografam no userspace e não dependem deles
 - `IKCONFIG` (com `IKCONFIG_PROC`) e `IKHEADERS`
 
-**Ficam y:** `BINFMT_SCRIPT` e `BINFMT_ELF`, `FW_LOADER`, `EFI_VARS_PSTORE` (crashes desde o boot), `TCP_CONG_CUBIC` (padrão do TCP), `EFIVAR_FS` (33.3), `NVME` disponível cedo, o core I2C (26), e as opções selecionadas por outras que precisam ficar embutidas (por exemplo, a criptografia da assinatura de módulos, o `NLS` pelo ACPI e pelo USB).
+**Ficam y:** `BINFMT_SCRIPT` e `BINFMT_ELF`, `FW_LOADER`, `EFI_VARS_PSTORE` (crashes desde o boot), `TCP_CONG_CUBIC` (padrão do TCP), `EFIVAR_FS` (33.3), `DRM`/`DRM_SIMPLEDRM`/`FB` (33.3), `ACPI_THERMAL` (22), `RTC_DRV_CMOS` (relógio certo desde o boot pelo `RTC_HCTOSYS`, inclusive no journal do initramfs), `NVME` disponível cedo, o core I2C (26), e as opções selecionadas por outras que precisam ficar embutidas (por exemplo, a criptografia da assinatura de módulos, o `NLS` pelo ACPI e pelo USB).
 
 ### 33.3 Initramfs/UKI
 
@@ -1180,12 +1179,12 @@ Módulo não significa indisponível no boot. O usuário usa `mkinitcpio`, UKI e
 
 **Sem o hook `kms`:** o `i915` não entra na UKI, e a senha do LUKS aparece pelo `simpledrm`. O `kms` aumentaria muito a UKI por causa do firmware: o autodetect resolveria o modalias da dGPU também para o `nouveau` (o `modprobe -R` ignora a blacklist) e o da iGPU também para o `xe`, e cada módulo leva todo firmware que declara. Com `DRM_NOUVEAU` e `DRM_XE` desligados, sobraria o `i915` e o firmware dele, ainda dispensável. Para medir: `mkinitcpio -A kms -s -g /tmp/kms.img` e `du` no diretório de build que ele indica.
 
-**Tela da senha no `linux-tkg`:** `DRM`, `DRM_SIMPLEDRM` e `FB` são módulos, e o `simpledrm` entra pelo `MODULES` (8). Precisa do `SYSFB_SIMPLEFB=y`, que o tkg desliga e o fragmento religa. Custo aceito: a tela fica preta do início do kernel até o `simpledrm` carregar no initramfs; um panic nesse trecho ainda fica no pstore EFI.
+**Tela desde o início do boot:** `DRM`, `DRM_SIMPLEDRM` e `FB` ficam embutidos. Como módulos não economizariam nada (o `i915` e o `nvidia_drm` carregam o núcleo DRM em todo boot), deixariam a tela preta até o initramfs, escondendo erros e panics do início do boot, e fariam o prompt do LUKS depender do `MODULES`. O `simpledrm` precisa do `SYSFB_SIMPLEFB=y`, que o tkg desliga e o fragmento religa.
 
 **Consequências para a modularização:**
 
 - podem ser m sem mudar nada no `mkinitcpio`: `NVME`, `BTRFS_FS`, `DM_CRYPT`, `DM_INTEGRITY`, `CRYPTO_AES_NI_INTEL`, `CRYPTO_XTS`, `TCG_TPM`, `TCG_CRB`, `USB_XHCI_PCI`/`USB_XHCI_HCD`, `USB_HID`, `HID_GENERIC`, `SERIO_I8042`, `KEYBOARD_ATKBD`, `VFAT_FS` e as NLS
-- ficam y, porque são usados antes de o initramfs rodar ou porque nenhum hook inclui o módulo: `BLK_DEV_INITRD` com `RD_ZSTD`, `DEVTMPFS`, `EFI_STUB`, `EFIVAR_FS` (o systemd do initramfs lê a `HibernateLocation`, 1B), `UNIX` (o systemd usa sockets AF_UNIX desde o PID 1), `BINFMT_ELF` e `BINFMT_SCRIPT`
+- ficam y, porque são usados antes de o initramfs rodar ou porque nenhum hook inclui o módulo: `BLK_DEV_INITRD` com `RD_ZSTD`, `DEVTMPFS`, `EFI_STUB`, `DRM_SIMPLEDRM` (tela da senha), `EFIVAR_FS` (o systemd do initramfs lê a `HibernateLocation`, 1B), `UNIX` (o systemd usa sockets AF_UNIX desde o PID 1), `BINFMT_ELF` e `BINFMT_SCRIPT`
 - `zswap`: o compressor é escolhido numa initcall, antes de o systemd do initramfs carregar o `MODULES`. `CRYPTO_ZSTD` (e `CRYPTO_LZ4`, `CRYPTO_LZO`) é y na base e fica; as entradas de `MODULES` não têm efeito
 - descompressores de initramfs: só `RD_ZSTD` (a UKI usa zstd); os outros `RD_*` saem. Se a `COMPRESSION` do mkinitcpio mudar, religar o `RD_*` correspondente, senão a UKI não inicia
 - `CRYPTO_MODULES`: sem ela, o `sd-encrypt` põe na UKI todos os módulos de criptografia, que com modularização máxima são dezenas. A variável não é documentada, mas o `sd-encrypt` a lê da configuração (pode ficar em `/etc/mkinitcpio.conf.d/`); para `aes-xts-plain64`, a lista mínima seria `aesni_intel xts`. Conferir com `mkinitcpio -v` e um boot de teste, com outro kernel à mão
