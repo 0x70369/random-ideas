@@ -13,7 +13,7 @@
 start() {
     # Platform profile, then PL1, PL2 and PL4 in W, and the PL1 time window (Tau) in s.
     # Applied in the background, after the firmware delay.
-    schedule_power_policy balanced 24 48 72 28
+    schedule_power_policy balanced 24 36 64 28
     wifi_powersave_on
     return 0
 }
