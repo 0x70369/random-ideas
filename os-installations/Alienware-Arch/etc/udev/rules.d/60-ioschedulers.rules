@@ -1,0 +1,6 @@
+# Single-queue disks (USB drives, SD cards, SATA via USB) get mq-deadline. NVMe keeps "none".
+# On linux-tkg mq-deadline is a module, and the kernel only loads it when the scheduler is written
+# here; without this rule those disks would stay on "none". On linux and linux-zen it is built in,
+# where it is already the default, so the rule changes nothing there.
+## https://wiki.archlinux.org/title/Improving_performance#Changing_I/O_scheduler
+ACTION=="add|change", KERNEL=="sd[a-z]*|mmcblk[0-9]*", ENV{DEVTYPE}=="disk", ATTR{queue/scheduler}="mq-deadline"
