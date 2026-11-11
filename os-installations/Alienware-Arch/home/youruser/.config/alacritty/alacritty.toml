@@ -4,7 +4,7 @@
 ####################################################################
 
 [cursor]
-blink_interval = 500 # Milliseconds
+blink_interval = 0 # Milliseconds
 blink_timeout = 0
 unfocused_hollow = true
 
