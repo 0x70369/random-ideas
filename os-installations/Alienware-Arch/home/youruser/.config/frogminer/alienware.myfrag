@@ -855,6 +855,11 @@ CONFIG_DEBUG_KMEMLEAK_AUTO_SCAN=y
 # Autoteste do NMI no boot, uma vez ("If unsure, say N", mas escolhido pelo usuário; custo só no boot)
 CONFIG_DEBUG_NMI_SELFTEST=y
 
+# Crashlog da CPU (firmware: Cpu CrashLog ligado, 2026-11-12): registro do estado da CPU num erro grave de
+# hardware, que sobrevive ao reboot e complementa o pstore (§32A.16). Lido em /sys/class/intel_pmt/crashlog*.
+# O localmodconfig o tirava porque o dispositivo estava desligado no firmware.
+CONFIG_INTEL_PMT_CRASHLOG=m
+
 # Menus de fabricantes de Ethernet e Wi-Fi: só escondem perguntas, mas ficavam ligados (o localmodconfig já tira
 # os drivers). Ficam o Realtek (r8169) e o Intel do Wi-Fi (iwlwifi).
 # CONFIG_NET_VENDOR_3COM is not set

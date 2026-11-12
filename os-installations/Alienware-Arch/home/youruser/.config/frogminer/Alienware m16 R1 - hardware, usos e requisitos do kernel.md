@@ -1,6 +1,6 @@
 # Alienware m16 R1 — Hardware, usos e requisitos para configuração do kernel
 
-Última atualização do documento: 2026-11-11
+Última atualização do documento: 2026-11-12
 
 Este documento descreve o sistema como ele deve ficar (Arch Linux reinstalado com os scripts do repositório e o kernel `linux-tkg` com o fragmento `alienware.myfrag`). Os números de seção são citados nos comentários do fragmento.
 
@@ -23,7 +23,7 @@ Este documento descreve o sistema como ele deve ficar (Arch Linux reinstalado co
 - Modelo: Alienware m16 R1 (Dell / Alienware), SKU / Platform ID 0BFB
 - Placa-mãe: Dell 00DK46, rev. A00
 - Service Tag: 80S9K34
-- BIOS 1.34.0 (2026-04-23); firmware do EC 1.21. A BIOS 1.36.0 (2026-10-22) tem o menu escondido idêntico byte a byte à 1.34.0; muda o Intel ME (16.1.40.2765 → 16.1.42.2872), o pacote do EC (1.15.0 → 1.16.0), os drivers de rede do BIOS Connect e módulos de segurança (criptografia, TPM, variáveis e WMI da Dell). O microcódigo embutido continua 0x133
+- BIOS 1.36.0 (2026-10-22), instalada em 2026-11-11 no lugar da 1.34.0. O menu escondido é idêntico byte a byte ao da 1.34.0; mudam o Intel ME (16.1.40.2765 → 16.1.42.2872), o pacote do EC (1.15.0 → 1.16.0), os drivers de rede do BIOS Connect e módulos de segurança (criptografia, TPM, variáveis e WMI da Dell). O microcódigo embutido continua 0x133
 - Sistema: Arch Linux com KDE Plasma
 - Boot: `systemd-boot` com UKIs, via shim (18)
 - Kernels: `linux-tkg` (o customizado) e, como reserva, `linux` e `linux-zen`, todos com os DKMS `nvidia` (615.78.08) e `looking-glass` (B7)
@@ -31,6 +31,8 @@ Este documento descreve o sistema como ele deve ficar (Arch Linux reinstalado co
 ## 1A. Firmware: configurações que afetam o kernel
 
 Alteradas pelo usuário no menu escondido (Smokeless UMAF) ou conferidas nos padrões. Ver a Seção 7 da página da wiki para caminhos e offsets.
+
+Um reset do firmware (carregar os padrões) volta todas as alteradas abaixo ao valor da Dell, e uma atualização da BIOS volta parte delas: depois de qualquer um dos dois, conferir a lista inteira (a seção 7 da wiki serve de checklist). O reset de 2026-11-12 desfez todas, e elas foram refeitas.
 
 **Alteradas:**
 
@@ -40,8 +42,21 @@ Alteradas pelo usuário no menu escondido (Smokeless UMAF) ou conferidas nos pad
 - WDT Enable: Enabled (watchdog do OC, usado pelo XTU no Windows)
 - BIST: Enabled (autoteste da CPU a cada reset)
 - REFRESH_2X_MODE: Enabled for WARM or HOT (refresh da RAM dobra quando ela esquenta)
-- Opção de debug do EC: Enabled (nome e caminho no menu ainda não registrados) → a luz do Caps Lock acende quando o EC entra no modo de economia de energia. Por isso a luz do Caps Lock não serve sozinha para saber se o sistema travou ou se a tecla está ativa
-- Power Limit 2: 157 W; multiplicador máximo 54x nos P-cores e 39x nos E-cores (clusters); BCLK 100,00 MHz; iGPU até 1650 MHz; IccMax 215 A (IA) e 30 A (GT)
+- Native ASPM (ACPI Settings, `Setup` offset `0x12`): Enabled (a Dell entrega Disabled) → o firmware entrega o controle do ASPM ao kernel pelo `_OSC`, e as políticas dos perfis do tuned (32A.5) passam a valer
+- D3 Setting for Storage (ACPI Settings, `Setup` offset `0xAB2`): D3Cold (a Dell entrega D3Hot) → no s2idle, o NVMe pode perder a energia por completo; sem efeito no S3
+- EC CS Debug Light (ACPI Settings, `Setup` offset `0x32`; padrão Disabled): Enabled → a luz do Caps Lock acende quando o EC entra no modo de economia de energia. Por isso a luz do Caps Lock não serve sozinha para saber se o sistema travou ou se a tecla está ativa
+- Advanced Error Reporting do PCI Express Root Port 25 (Thunderbolt, `PchSetup` offset `0x283`): Enabled (a Dell entrega Disabled) → erros de PCIe no link do Thunderbolt passam a ser reportados ao kernel
+- Tcc Offset Lock Enable: Enabled (a 1.36.0 veio com Disabled)
+- DTBT RTD3 CLKREQ Delay value (ACPI D3Cold settings, `Setup` offset `0x985`): 200 ms (a Dell entrega 0) → espera depois de mudar o CLKREQ ao religar o controlador do Thunderbolt, contra a falha de 7
+- RFI Mitigation (Connectivity Configuration): Enabled (a Dell entrega Disabled) → o `iwlwifi` pode pedir ao controlador de memória um pequeno desvio na frequência da DDR quando ela interfere no canal Wi-Fi em uso
+- Disable Fast PKG C State Ramp for IA Domain e for GT Domain (Power & Performance > CPU VR Settings > Acoustic Noise Settings, `CpuSetup` offsets `0x1FD` e `0x1FE`): TRUE (padrão FALSE) → os reguladores de tensão sobem devagar ao sair dos estados de repouso profundos do pacote, contra o coil whine
+- Config TDP (Power & Performance): Nominal (o nível do boot) com PL1 55 W e PL2 86 W, os mesmos do `alienware-balanced` (a Dell entrega 165/165 W); Level 1 com 157/157 W; Level 2 indefinido. No Linux, os perfis do tuned reescrevem os limites (32A.4)
+- Thermal Device (B0:D4:F0) (System Agent (SA) Configuration, `SaSetup` offset `0x7C`): Enabled (padrão Disabled) → expõe o `00:04.0` (`proc_thermal_pci`) e com ele o `intel-rapl-mmio`, que o tuned escreve; sem ele, o limite MMIO do firmware limitaria a CPU
+- Cpu CrashLog (Device 10) (System Agent (SA) Configuration, `SaSetup` offset `0xF6`): Enabled (padrão Disabled) → registro do estado da CPU em erros graves de hardware, que sobrevive ao reboot (32A.16)
+- DeepSx Power Policies (PCH-IO Configuration, `PchSetup` offset `0x4`): Enabled in S4-S5 (padrão Disabled) → hibernado ou desligado, o chipset corta a energia de standby, e o laptop só acorda pelo botão de energia
+- EFI Network (PCH-IO Configuration, `Setup` offset `0x49`): Disabled (a Dell entrega Onboard NIC & WiFi) → sem pilha de rede no firmware; sem boot pela rede nem BIOS Connect, e o fwupd continua atualizando o firmware
+- LPM S0i2.1 (`PchSetup` offset `0x14`): Enabled (a Dell entrega Disabled); só afeta o s2idle, sem efeito com o S3
+- Power Limit 2: 157 W (a opção fica escondida no setup da 1.36.0; no Linux o tuned define o PL2); multiplicador máximo 54x nos P-cores e 39x nos E-cores (clusters); BCLK 100,00 MHz; iGPU até 1650 MHz; IccMax 215 A (IA) e 30 A (GT)
 
 **Mantidas nos padrões porque o sistema depende delas:**
 
@@ -50,7 +65,14 @@ Alteradas pelo usuário no menu escondido (Smokeless UMAF) ou conferidas nos pad
 - ACS em cada root port: Enabled → a dGPU fica no próprio grupo IOMMU sem o patch de ACS override
 - ACPI D3Cold Support: Enabled → necessário para a dGPU desligar por completo (RTD3)
 - Package Power Limit MSR Lock: Disabled → o `tuned` consegue escrever os limites RAPL em runtime
-- Tcc Activation Offset: 0, com Tcc Offset Lock Enable: Enabled → o throttling começa no Tjmax de 100 °C, e o `tjoffset` do `intel-undervolt` é ignorado
+- Tcc Activation Offset: 0, com o Tcc Offset Lock (acima) → o throttling começa no Tjmax de 100 °C, e o `tjoffset` do `intel-undervolt` é ignorado
+- PROCHOT Lock (`CpuSetup` offset `0x7D`) e Bi-directional PROCHOT#: Enabled → a CPU reduz a velocidade quando o EC sinaliza superaquecimento de outra parte (GPU, reguladores), e o sistema não consegue desligar essa resposta pelo MSR
+- Platform Debug Consent (`SiSetup` offset `0x1`): Disabled → sem Intel DCI nem Trace Hub (debug da CPU por USB, abaixo do sistema e do Secure Boot)
+- Intel Dynamic Tuning Technology, INT3400 Device e Processor Thermal Device (SA Thermal Device): Enabled → `int3400 thermal`, `proc_thermal_pci` e os sensores `int3403` (22); Charger, Power e Battery Participant desligados
+- Enable TCO Timer (`PchSetup` offset `0x11`): Disabled → sem tabela WDAT e sem o timer ACPI do chipset; o `iTCO_wdt` funciona assim mesmo (20)
+- System Time and Alarm Source: ACPI Time and Alarm Device, com o RTC antigo também presente → `acpi-tad` e `rtc_cmos` (`/dev/rtc0`, usado para acordar na hora marcada)
+- HID Event Filter Driver: Enabled → `INTC1070` (`intel-hid`)
+- Pseudo G3: Enabled (padrão da Intel Disabled) e Charging Method: Normal Charging → desligado e na bateria, o EC corta quase toda a energia; carga sem o modo rápido, que desgasta mais a bateria (30)
 
 **No menu F2 (Dell):**
 
@@ -452,7 +474,7 @@ Autosuspend: Bluetooth e webcam ficam com `power/control=auto`; o teclado intern
 - `0b95:1790` ASIX AX88179, Ethernet USB, `ax88179_178a`
 - `30fa:1440` mouse gamer, `usbhid`
 
-**Problema conhecido:** com a política ASPM `powersupersave` (os links do Thunderbolt são os únicos com L0s ligado nela), acordar o NHI (`04:00.0`) e o xHCI (`38:00.0`) do Thunderbolt em runtime, por exemplo com um `lspci -vvv`, pode deixá-los mortos (`not ready 1023ms after resume; giving up`, `HC died`, aviso em `drivers/thunderbolt/nhi.c:142`, `failed to send driver ready to ICM`) até reiniciar. Causa ainda não confirmada.
+**Problema conhecido:** com a política ASPM `powersupersave` (os links do Thunderbolt são os únicos com L0s ligado nela), acordar o NHI (`04:00.0`) e o xHCI (`38:00.0`) do Thunderbolt em runtime, por exemplo com um `lspci -vvv`, pode deixá-los mortos (`not ready 1023ms after resume; giving up`, `HC died`, aviso em `drivers/thunderbolt/nhi.c:142`, `failed to send driver ready to ICM`) até reiniciar. Causa ainda não confirmada. No firmware (PCI Express Root Port 25), o link do Thunderbolt vem com ASPM só L1, sem L1 Substates, com Hot Plug ligado e Advanced Error Reporting desligado: o L0s que o kernel liga no `powersupersave` é algo que o firmware não configura nesse link, e erros de PCIe nele não são reportados (o AER desse port foi ligado no firmware, 1A). Em ACPI D3Cold settings, o firmware deixa o controlador do Thunderbolt desligar em runtime (DTBT RTD3 Enable e DTBT RTD3 CLKREQ Enable ligados, TBT Power-off delay = 5000 ms): é esse caminho de desligar e religar que falha. O DTBT RTD3 CLKREQ Delay value foi de 0 para 200 ms em 2026-11-11 (1A), junto com o AER; se a falha continuar, o próximo teste é desligar o L0s dos links e depois o DTBT RTD3 CLKREQ, medindo o consumo antes e depois.
 
 **Preservar:**
 
@@ -527,6 +549,7 @@ MODULES_DECOMPRESS="yes"
 ### Swap / hibernação
 
 - Swapfile Btrfs de 16 GiB em `/.swap/swapfile`
+- hibernado (S4) ou desligado, o laptop só acorda pelo botão de energia: o DeepSx corta a energia de standby do chipset (1A)
 - hibernação comprimida com lz4, localizada pelo systemd pela `HibernateLocation` (1B); `zswap` com zstd
 - `HibernateMode=platform`; sono com `MemorySleepMode=deep` e `SuspendState=mem` (S3 ativado no firmware)
 - `systemd-oomd` ativo: mata processos por pressão de memória (`ManagedOOMMemoryPressureLimit=70%` nas sessões de usuário) e por uso de swap; depende do PSI e do controlador de memória do cgroup v2
@@ -735,7 +758,7 @@ Found a Intel PCH TCO device, Version=6, TCOBASE=0x0400, heartbeat=30 sec, noway
 ```
 
 - watchdog real: Intel TCO (`iTCO_wdt`, com o `intel_pmc_bxt`); fica
-- ACPI WDAT ausente
+- ACPI WDAT ausente: o firmware só a publica com o Enable TCO Timer ligado, e ele fica desligado (1A); o `iTCO_wdt` não depende dela
 - softdog e pretimeout desnecessários; `nowayout=0` desejado
 
 ### NMI watchdog
@@ -763,6 +786,7 @@ Found a Intel PCH TCO device, Version=6, TCOBASE=0x0400, heartbeat=30 sec, noway
 - não há ventoinha ACPI (`PNP0C0B` ou `INTC1048`): as ventoinhas vêm do Dell SMM e do WMI (23). `ACPI_FAN` fica como módulo só porque o `INT340X_THERMAL` o seleciona
 - `ACPI_THERMAL` embutido (o Kconfig o chama de "HIGHLY recommended"; como módulo, as zonas térmicas do firmware só valeriam depois do prompt do LUKS)
 - thermald desabilitado (32)
+- zona térmica ACPI genérica (Platform Thermal Configuration do firmware, nos padrões): ponto crítico em 119 °C (o kernel desliga o sistema), pontos passivos desligados (o kernel não reduz a velocidade da CPU por ela; o throttling vem do TCC aos 100 °C) e pontos ativos sem efeito, por falta de ventoinha ACPI
 
 ## 23. HWMON
 
@@ -1126,6 +1150,7 @@ Um travamento completo (tela parada, Ctrl+Alt+F sem resposta, nada gravado no jo
 - `/etc/sysctl.d/90-debug-travamento.conf`: `kernel.hardlockup_panic=1`, `kernel.softlockup_panic=1`, `kernel.panic=10` (o lockup vira panic, gravado no pstore, e o sistema reinicia em 10 s)
 - `/etc/systemd/journald.conf.d/90-debug-sync.conf`: `SyncIntervalSec=10s`
 - pstore EFI e `systemd-pstore` (8), `DPM_WATCHDOG` no `linux-tkg` (31) e SysRq completo (33.6)
+- crashlog da CPU: ligado no firmware (1A) e lido pelo `intel_pmt_crashlog` (`CONFIG_INTEL_PMT_CRASHLOG=m` no fragmento), em `/sys/class/intel_pmt/crashlog*`
 
 ## 33. Requisitos para escolher opções do menuconfig
 
@@ -1279,7 +1304,7 @@ Nunca deixar um `.myfrag` antigo prevalecer sobre uma decisão posterior explíc
 
 **Este é um:**
 
-- Alienware m16 R1, BIOS 1.34.0
+- Alienware m16 R1, BIOS 1.36.0
 - i9-13900HX, 24C/32T, microcódigo 0x137
 - 32 GB DDR5
 - Intel UHD + RTX 4070 Laptop
