@@ -12,7 +12,7 @@
 start() {
     # Platform profile, then PL1, PL2 and PL4 in W, and the PL1 time window (Tau) in s.
     # Applied in the background, after the firmware delay.
-    schedule_power_policy balanced-performance 150 157 330 128
+    schedule_power_policy balanced-performance 157 157 330 0
     return 0
 }
 
