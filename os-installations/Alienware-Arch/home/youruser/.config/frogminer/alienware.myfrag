@@ -382,10 +382,12 @@ CONFIG_ACPI_FAN=m
 # CONFIG_SOLARIS_X86_PARTITION is not set
 # CONFIG_LDM_PARTITION is not set
 # CONFIG_KARMA_PARTITION is not set
-# Driver NTFS novo (fs/ntfs), escolha do usuário no menuconfig do 1º build (2026-11-11). O NTFS_DEBUG só
-# compila as mensagens de debug; elas ficam desligadas até serem ativadas.
+# Driver NTFS novo (fs/ntfs, desde o 7.1), escolha do usuário no menuconfig do 1º build (2026-11-11): mais rápido
+# que o ntfs3 na escrita e ao montar, em teste para virar o padrão (§8). Sem o NTFS_DEBUG (2026-11-13): ele só
+# serve para depurar o próprio driver (mensagens e verificações internas, para relatar bugs); a validação do que
+# vem do disco e os avisos de volume com erros funcionam sem ele.
 CONFIG_NTFS_FS=m
-CONFIG_NTFS_DEBUG=y
+# CONFIG_NTFS_DEBUG is not set
 # Contabilidade de processos BSD (DEPRECATED) e controlador RDMA dos cgroups
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_CGROUP_RDMA is not set
@@ -458,21 +460,10 @@ CONFIG_MODULE_SIG_FORCE=y
 # Lockdown iniciado antes dos outros LSMs. Com o lockdown forçado em "none" (§18: o modo integrity impede a
 # hibernação), só tem efeito se um dia o lockdown for ligado.
 CONFIG_SECURITY_LOCKDOWN_LSM_EARLY=y
-# UBSAN: verificação de índices de arrays e de comportamentos indefinidos. O trap (abortar em vez de avisar)
-# derrubaria o kernel por comportamentos inofensivos, inclusive nos módulos do DKMS, compilados com as mesmas
-# flags; o Kconfig avisa que ele "may destabilize the system".
-# Decisão do 1º build (2026-11-11): detectores de shift, divisão por zero, bool e enum ligados, e o trap
-# DESLIGADO, para que todos só avisem no dmesg ("UBSAN: ...") em vez de derrubar o kernel ou o nvidia.
-CONFIG_UBSAN=y
-CONFIG_UBSAN_BOUNDS=y
-# CONFIG_UBSAN_TRAP is not set
-CONFIG_UBSAN_SHIFT=y
-CONFIG_UBSAN_DIV_ZERO=y
-# CONFIG_UBSAN_UNREACHABLE is not set
-# CONFIG_UBSAN_INTEGER_WRAP is not set
-CONFIG_UBSAN_BOOL=y
-CONFIG_UBSAN_ENUM=y
-# CONFIG_UBSAN_ALIGNMENT is not set
+# UBSAN fora (2026-11-13): sem o trap ele só avisa no dmesg, sem proteger nada, e o custo das verificações fica
+# em todo o kernel e nos módulos do DKMS; com o trap, comportamentos inofensivos derrubariam o kernel ou o nvidia.
+# Sem uso realista como debug (§33.6).
+# CONFIG_UBSAN is not set
 # modprobe --force e rmmod -f. Kconfig: "usually a really bad idea" e "If unsure, say N".
 # CONFIG_MODULE_FORCE_LOAD is not set
 # CONFIG_MODULE_FORCE_UNLOAD is not set
@@ -792,14 +783,14 @@ CONFIG_ALLOW_DEV_COREDUMP=y
 CONFIG_DM_INTEGRITY=m
 CONFIG_SYSFB_SIMPLEFB=y
 
-# TCP: o padrão precisa ser embutido. Westwood+, Vegas, YeAH e BBR ficam como módulos, carregados ao serem
-# escolhidos em net.ipv4.tcp_congestion_control.
+# TCP: o padrão precisa ser embutido. Os outros algoritmos saem (2026-11-13: Westwood+, Vegas, YeAH e BBR não
+# são usados; os demais o localmodconfig já tira).
 CONFIG_TCP_CONG_CUBIC=y
 CONFIG_DEFAULT_CUBIC=y
-CONFIG_TCP_CONG_WESTWOOD=m
-CONFIG_TCP_CONG_VEGAS=m
-CONFIG_TCP_CONG_YEAH=m
-CONFIG_TCP_CONG_BBR=m
+# CONFIG_TCP_CONG_WESTWOOD is not set
+# CONFIG_TCP_CONG_VEGAS is not set
+# CONFIG_TCP_CONG_YEAH is not set
+# CONFIG_TCP_CONG_BBR is not set
 
 # Compilado só para esta CPU (-march=native). O kernel deixa de bootar em outra máquina, o que aqui é intencional (§0).
 CONFIG_X86_NATIVE_CPU=y
@@ -820,8 +811,9 @@ CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y
 # HVO ligado por padrão nas páginas HugeTLB (as VMs com hugepages, §16)
 CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON=y
 
-# EDID embutido no firmware de vídeo, usado se o monitor não informar o seu
-CONFIG_FIRMWARE_EDID=y
+# EDID repassado pelo firmware (o da tela do boot): só o simpledrm o usaria. O i915 e o nvidia leem o EDID de cada
+# saída direto do painel e dos monitores (2026-11-13).
+# CONFIG_FIRMWARE_EDID is not set
 
 # SOF: o controlador de áudio do RPL-S (8086:7a50) está na lista do pci-tgl.c, habilitada pelo ALDERLAKE
 # CONFIG_SND_SOC_SOF_TIGERLAKE is not set
@@ -832,10 +824,11 @@ CONFIG_SND_SOC_SOF_ALDERLAKE=m
 CONFIG_USB_PRINTER=m
 # CONFIG_USB_STORAGE_DEBUG is not set
 
-# Gatilhos de LED: sem MTD aqui; o de CPU acende LEDs por atividade de cada núcleo e não há LED para isso
+# Gatilhos de LED: sem MTD aqui; o de CPU acende LEDs por atividade de cada núcleo e não há LED para isso; o de
+# câmera é para LEDs de flash de câmeras de plataforma (MIPI), e o LED da webcam UVC é controlado pelo hardware
 # CONFIG_LEDS_TRIGGER_MTD is not set
 # CONFIG_LEDS_TRIGGER_CPU is not set
-CONFIG_LEDS_TRIGGER_CAMERA=m
+# CONFIG_LEDS_TRIGGER_CAMERA is not set
 
 # Verificação da API de bitmap do Rust ("If unsure, say N", mas escolhido pelo usuário; custo só no código Rust)
 CONFIG_RUST_BITMAP_HARDENED=y
@@ -847,11 +840,9 @@ CONFIG_CRYPTO_SELFTESTS=y
 # ficam em "Accelerated Cryptographic Algorithms for CPU" e não dependem disto.
 # CONFIG_CRYPTO_HW is not set
 
-# Detector de vazamentos de memória do kernel compilado e desligado: liga com kmemleak=on na linha de comando
-# e se lê em /sys/kernel/debug/kmemleak. Ligado sempre, rastreia toda alocação.
-CONFIG_DEBUG_KMEMLEAK=y
-CONFIG_DEBUG_KMEMLEAK_DEFAULT_OFF=y
-CONFIG_DEBUG_KMEMLEAK_AUTO_SCAN=y
+# kmemleak fora (2026-11-13): mesmo desligado em runtime, os ganchos ficam em cada alocação de memória, e caçar
+# vazamentos dentro do kernel não é um uso realista aqui (§33.6).
+# CONFIG_DEBUG_KMEMLEAK is not set
 # Autoteste do NMI no boot, uma vez ("If unsure, say N", mas escolhido pelo usuário; custo só no boot)
 CONFIG_DEBUG_NMI_SELFTEST=y
 
