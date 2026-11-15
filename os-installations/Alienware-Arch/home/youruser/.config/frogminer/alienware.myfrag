@@ -1,33 +1,33 @@
-# alienware.myfrag: fragmento fixo do linux-tkg para o Alienware m16 R1
+# alienware.myfrag: linux-tkg's fixed fragment for the Alienware m16 R1
 #
-# Base: linux-tkg-config/7.2/config.x86_64 (= configuração do `linux` do Arch), depois do
-# `make localmodconfig` do modprobed-db. Aplicado pelo merge_config.sh -m e depois olddefconfig.
-# Validado contra o Kconfig do 7.2.15: cada linha abaixo fica com o valor pedido.
+# Base: linux-tkg-config/7.2/config.x86_64 (= Arch's `linux` configuration), after modprobed-db's
+# `make localmodconfig`. Applied by merge_config.sh -m, then olddefconfig.
+# Validated against the 7.2.15 Kconfig: every line below ends up with the requested value.
 #
-# As referências "(§N)" apontam para o documento de inventário do laptop.
-# Não renomear: o _diffconfig grava em menuconfig-diff.txt, que não termina em .myfrag.
+# The "(§N)" references point to the laptop's inventory document.
+# Don't rename: _diffconfig writes to menuconfig-diff.txt, which doesn't end in .myfrag.
 #
-# O localmodconfig só desliga opções m sem módulo no banco. Este fragmento cuida do resto:
-# 1. religa o debug que o _STRIP="true" desliga;
-# 2. desliga o que cobre hardware ausente ou o papel de guest (opções y que o localmodconfig não toca);
-# 3. passa para m o que não precisa estar embutido;
-# 4. reforça como m os módulos de uso raro já declarados, para o caso de o banco não os ter.
+# localmodconfig only turns off m options with no module in the database. This fragment handles the rest:
+# 1. turns back on the debug info that _STRIP="true" turns off;
+# 2. turns off what covers absent hardware or the guest role (y options localmodconfig doesn't touch);
+# 3. turns into m what doesn't need to be built in;
+# 4. reinforces as m the already declared rarely used modules, in case the database lacks them.
 
 # =====================================================================================
 # 1. Debug (§31, §33.6)
 # =====================================================================================
 
-# _STRIP="true" liga DEBUG_INFO_NONE, que desligaria o BTF. O BPF LSM do systemd exige BTF.
-# O DWARF serve para gerar o BTF; o INSTALL_MOD_STRIP=1 o tira dos módulos instalados e mantém a seção .BTF.
+# _STRIP="true" turns on DEBUG_INFO_NONE, which would turn BTF off. systemd's BPF LSM requires BTF.
+# DWARF is used to generate BTF; INSTALL_MOD_STRIP=1 strips it from the installed modules and keeps the .BTF section.
 # CONFIG_DEBUG_INFO_NONE is not set
 CONFIG_DEBUG_INFO_DWARF5=y
 CONFIG_DEBUG_INFO_BTF=y
 CONFIG_DEBUG_INFO_BTF_MODULES=y
 CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y
 
-# Testes, injeção de falhas e debug só para desenvolvedores (§33.4, §33.6: "test/mock/simulator/fault-injection/developer-only fora").
-# O que o §33.6 manda manter (IKCONFIG, KALLSYMS_ALL, DYNAMIC_DEBUG, ftrace, kprobes,
-# uprobes, perf, BPF_EVENTS, debugfs, pstore, MAGIC_SYSRQ) não é tocado aqui.
+# Tests, fault injection and developer-only debugging (§33.4, §33.6: "test/mock/simulator/fault-injection/developer-only out").
+# What §33.6 says to keep (IKCONFIG, KALLSYMS_ALL, DYNAMIC_DEBUG, ftrace, kprobes,
+# uprobes, perf, BPF_EVENTS, debugfs, pstore, MAGIC_SYSRQ) isn't touched here.
 # CONFIG_X86_DECODER_SELFTEST is not set
 # CONFIG_DEBUG_RODATA_TEST is not set
 # CONFIG_DEBUG_SHIRQ is not set
@@ -36,39 +36,39 @@ CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y
 # CONFIG_BLK_ERROR_INJECTION is not set
 # Kconfig: "If you are not helping to develop drivers, say N".
 # CONFIG_MMIOTRACE is not set
-# Debug por porta USB 3 com cabo de debug e um segundo computador. Kconfig: "If unsure, say 'N'".
+# Debugging over a USB 3 port with a debug cable and a second computer. Kconfig: "If unsure, say 'N'".
 # CONFIG_USB_XHCI_DBGCAP is not set
 # CONFIG_EARLY_PRINTK_USB_XDBC is not set
-# Early printk pela porta de debug EHCI: não há controlador EHCI. Kconfig: "You should normally say N here".
+# Early printk through the EHCI debug port: there is no EHCI controller. Kconfig: "You should normally say N here".
 # CONFIG_EARLY_PRINTK_DBGP is not set
-# Log do firmware OVMF: só existe dentro de uma VM.
+# OVMF firmware log: only exists inside a VM.
 # CONFIG_OVMF_DEBUG_LOG is not set
 
-# pstore por EFI (§8): a configuração do Arch desliga o backend EFI por padrão (pstore_disable=Y no zen,
-# conferido em 2026-11-09), então nenhum crash era gravado. O padrão do Kconfig é ligado. Cada crash grava
-# alguns KB na NVRAM. O systemd-pstore.service move os registros para /var/lib/systemd/pstore e os apaga
-# da NVRAM na inicialização seguinte; ele precisa estar habilitado (systemctl enable systemd-pstore.service).
+# EFI pstore (§8): Arch's configuration turns the EFI backend off by default (pstore_disable=Y on zen,
+# checked on 2026-11-09), so no crash was saved. The Kconfig default is on. Each crash writes
+# a few KB to NVRAM. systemd-pstore.service moves the records to /var/lib/systemd/pstore and erases them
+# from NVRAM on the next boot; it must be enabled (systemctl enable systemd-pstore.service).
 # CONFIG_EFI_VARS_PSTORE_DEFAULT_DISABLE is not set
 
-# kexec e kdump: o diagnóstico de crash usa o pstore (§8), e o kdump não está configurado.
-# Com o lockdown em "none" (§18), o kexec_load permite ao root iniciar um kernel não assinado
-# sem passar pelo Secure Boot (§33.5: reduzir superfície de ataque).
-# Para usar `systemctl kexec` ou o kdump, religar KEXEC_FILE com KEXEC_SIG.
+# kexec and kdump: crash diagnosis uses pstore (§8), and kdump isn't set up.
+# With lockdown at "none" (§18), kexec_load lets root boot an unsigned kernel
+# without going through Secure Boot (§33.5: reduce the attack surface).
+# To use `systemctl kexec` or kdump, turn KEXEC_FILE back on with KEXEC_SIG.
 # CONFIG_KEXEC is not set
 # CONFIG_KEXEC_FILE is not set
 # CONFIG_CRASH_DUMP is not set
-# Kexec HandOver e Live Update (atualizar o kernel de servidores por kexec sem perder as VMs);
-# o KEXEC_HANDOVER seleciona KEXEC_FILE
+# Kexec HandOver and Live Update (updating servers' kernels through kexec without losing the VMs);
+# KEXEC_HANDOVER selects KEXEC_FILE
 # CONFIG_KEXEC_HANDOVER is not set
 # CONFIG_LIVEUPDATE is not set
-# Verificação de assinatura de arquivos PE: só o kexec a usava
+# PE file signature verification: only kexec used it
 # CONFIG_SIGNED_PE_FILE_VERIFICATION is not set
 
 # =====================================================================================
-# 2. CPU, plataforma e papel de host (§2, §16, §33.7, §33.8)
+# 2. CPU, platform and host role (§2, §16, §33.7, §33.8)
 # =====================================================================================
 
-# CPU Intel apenas (i9-13900HX). O suporte às outras CPUs só sai com EXPERT (bloco 8).
+# Intel CPUs only (i9-13900HX). Support for other CPUs only goes away with EXPERT (block 8).
 # CONFIG_AMD_IOMMU is not set
 # CONFIG_IOMMU_PT_AMDV1 is not set
 # CONFIG_AMD_3D_VCACHE is not set
@@ -84,27 +84,27 @@ CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y
 # CONFIG_PERF_EVENTS_AMD_BRS is not set
 # CONFIG_AMD_HFI is not set
 # CONFIG_CRYPTO_DEV_CCP is not set
-# Mitigações de falhas que só existem em CPUs AMD (todas "depends on CPU_SUP_AMD"): retbleed=unret/ibpb,
-# SRSO e TSA. As mitigações da Intel e as comuns ficam todas.
+# Mitigations for flaws that only exist on AMD CPUs (all "depends on CPU_SUP_AMD"): retbleed=unret/ibpb,
+# SRSO and TSA. The Intel and common mitigations all stay.
 # CONFIG_MITIGATION_UNRET_ENTRY is not set
 # CONFIG_MITIGATION_IBPB_ENTRY is not set
 # CONFIG_MITIGATION_SRSO is not set
 # CONFIG_MITIGATION_TSA is not set
 
-# Recursos que o processador não tem: TDX é só em Xeon, e a flag sgx não aparece (conferido em 2026-11-09)
+# Features the processor doesn't have: TDX is Xeon only, and the sgx flag doesn't show up (checked on 2026-11-09)
 # CONFIG_INTEL_TDX_HOST is not set
 # CONFIG_X86_SGX is not set
 # Turbo Boost Max 3.0: Kconfig "only required when the system is not using Hardware P-States (HWP)";
-# aqui o intel_pstate está em modo active com HWP (§32A)
+# here intel_pstate is in active mode with HWP (§32A)
 # CONFIG_INTEL_TURBO_MAX_3 is not set
-# Tabela MPS: Kconfig "For old smp systems that do not have proper acpi support"
+# MPS table: Kconfig "For old smp systems that do not have proper acpi support"
 # CONFIG_X86_MPPARSE is not set
 
-# RDT/resctrl (CAT, CMT, MBA): a CPU não tem as flags rdt_a, cat_l2/l3, cqm e mba (conferido em 2026-11-09)
+# RDT/resctrl (CAT, CMT, MBA): the CPU doesn't have the rdt_a, cat_l2/l3, cqm and mba flags (checked on 2026-11-09)
 # CONFIG_X86_CPU_RESCTRL is not set
 
-# Plataformas Intel antigas/embarcadas: Merrifield (SCU), Bay Trail/Cherry Trail (PMIC Crystal Cove
-# e Whiskey Cove, pinctrl, semáforo I2C), notebooks com UEFI de 32 bits
+# Old/embedded Intel platforms: Merrifield (SCU), Bay Trail/Cherry Trail (Crystal Cove and
+# Whiskey Cove PMICs, pinctrl, I2C semaphore), notebooks with 32-bit UEFI
 # CONFIG_INTEL_SCU_PCI is not set
 # CONFIG_INTEL_SOC_PMIC is not set
 # CONFIG_INTEL_SOC_PMIC_CHTWC is not set
@@ -112,15 +112,15 @@ CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y
 # CONFIG_PINCTRL_CHERRYVIEW is not set
 # CONFIG_I2C_DESIGNWARE_BAYTRAIL is not set
 # CONFIG_EFI_MIXED is not set
-# Protocolo EFI handover (DEPRECATED): só bootloaders antigos e GRUB com patches o usam. A UKI entra
-# pelo ponto de entrada PE normal do EFI stub, e o initrd vem pelo LoadFile2.
+# EFI handover protocol (DEPRECATED): only old bootloaders and patched GRUB use it. The UKI enters
+# through the EFI stub's normal PE entry point, and the initrd comes through LoadFile2.
 # CONFIG_EFI_HANDOVER_PROTOCOL is not set
-# Tabela RCI2 (servidores Dell PowerEdge), segredos e heaps de computação confidencial (guest)
+# RCI2 table (Dell PowerEdge servers), confidential computing secrets and heaps (guest)
 # CONFIG_EFI_RCI2_TABLE is not set
 # CONFIG_EFI_COCO_SECRET is not set
 # CONFIG_DMABUF_HEAPS_SYSTEM_CC_SHARED is not set
 
-# Plataformas de outros fabricantes (§33.7: "ChromeOS EC não é necessário só porque laptop tem EC")
+# Other vendors' platforms (§33.7: "ChromeOS EC isn't needed just because the laptop has an EC")
 # CONFIG_CHROME_PLATFORMS is not set
 # CONFIG_GOOGLE_FIRMWARE is not set
 # CONFIG_SURFACE_PLATFORMS is not set
@@ -128,98 +128,98 @@ CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y
 # CONFIG_X86_PLATFORM_DRIVERS_HP is not set
 # CONFIG_X86_PLATFORM_DRIVERS_UNIWILL is not set
 
-# Guest: este kernel nunca roda dentro de uma VM (§0, §16, §33.8).
-# HYPERVISOR_GUEST leva junto PARAVIRT, KVM_GUEST, Xen, Jailhouse, ACRN e TDX guest.
+# Guest: this kernel never runs inside a VM (§0, §16, §33.8).
+# HYPERVISOR_GUEST takes PARAVIRT, KVM_GUEST, Xen, Jailhouse, ACRN and the TDX guest with it.
 # CONFIG_HYPERVISOR_GUEST is not set
 # CONFIG_HYPERV is not set
 # CONFIG_VMGENID is not set
 # CONFIG_PVPANIC is not set
 # CONFIG_VIRT_DRIVERS is not set
 # CONFIG_MOUSE_PS2_VMMOUSE is not set
-# Frontends VirtIO (as placas virtio da VM são servidas pelo vhost_net do host, que fica)
+# VirtIO frontends (the VM's virtio devices are served by the host's vhost_net, which stays)
 # CONFIG_VIRTIO_PCI is not set
 # CONFIG_VIRTIO_BLK is not set
 # CONFIG_SCSI_VIRTIO is not set
 # CONFIG_VIRTIO_CONSOLE is not set
 # CONFIG_VIRTIO_FS is not set
 # CONFIG_VIRTIO_MENU is not set
-# Processadores auxiliares de SoCs ARM; seleciona o núcleo VirtIO
+# Auxiliary processors of ARM SoCs; selects the VirtIO core
 # CONFIG_REMOTEPROC is not set
 
-# KVM do host: só Intel, sem TDX e sem emulação de Xen para guests (§16: "não usa Xen").
-# KVM_HYPERV fica: são as enlightenments Hyper-V que as VMs Windows usam.
+# Host KVM: Intel only, no TDX and no Xen emulation for guests (§16: "doesn't use Xen").
+# KVM_HYPERV stays: these are the Hyper-V enlightenments the Windows VMs use.
 # CONFIG_KVM_AMD is not set
 # CONFIG_KVM_INTEL_TDX is not set
 # CONFIG_KVM_XEN is not set
 
-# IOMMU ligado por padrão (§1B, §31): torna o intel_iommu=on dispensável.
-# O parâmetro pode ficar no cmdline.d sem efeito colateral.
+# IOMMU on by default (§1B, §31): makes intel_iommu=on unnecessary.
+# The parameter can stay in cmdline.d with no side effect.
 CONFIG_INTEL_IOMMU_DEFAULT_ON=y
 
-# ABI x32: nenhum programa do Arch a usa; é código de syscalls exposto sem uso (§33.5).
-# O IA32 (32 bits, Steam/Wine) fica.
+# x32 ABI: no Arch program uses it; it's exposed syscall code with no use (§33.5).
+# IA32 (32-bit, Steam/Wine) stays.
 # CONFIG_X86_X32_ABI is not set
 
-# /dev/mem e /dev/port: acesso bruto à memória física e às portas de E/S (§33.5). O único usuário seria o
-# intel-undervolt, para limites de potência e Tjunction por MMIO, mas a configuração dele só tem undervolt
-# (pelo msr), e os limites de potência vêm do tuned pelo powercap (conferido em 2026-11-10). Se um dia
-# usar as linhas "power" ou "tjoffset" do intel-undervolt, religar DEVMEM.
+# /dev/mem and /dev/port: raw access to physical memory and I/O ports (§33.5). The only user would be
+# intel-undervolt, for MMIO power limits and Tjunction, but its configuration only has undervolt
+# (through msr), and the power limits come from tuned through powercap (checked on 2026-11-10). If
+# intel-undervolt's "power" or "tjoffset" lines are ever used, turn DEVMEM back on.
 # CONFIG_DEVMEM is not set
 # CONFIG_DEVPORT is not set
 # /dev/snapshot (uswsusp). Kconfig: "Say N if no snapshotting from userspace is needed, this also reduces
-# the attack surface of the kernel". O systemd hiberna pelo /sys/power/state.
+# the attack surface of the kernel". systemd hibernates through /sys/power/state.
 # CONFIG_HIBERNATION_SNAPSHOT_DEV is not set
 
-# ioperm()/iopl(): Kconfig "necessary for legacy applications"; acesso bruto a todas as portas de
-# E/S (§33.5: evitar raw access). Nada declarado no inventário usa.
+# ioperm()/iopl(): Kconfig "necessary for legacy applications"; raw access to every I/O
+# port (§33.5: avoid raw access). Nothing declared in the inventory uses it.
 # CONFIG_X86_IOPL_IOPERM is not set
 
-# MSR e CPUID como módulos. O msr não carrega sozinho ao abrir /dev/cpu/*/msr, mas o intel-undervolt
-# (§32) roda "/sbin/modprobe msr" antes de abri-lo.
+# MSR and CPUID as modules. msr doesn't load by itself when /dev/cpu/*/msr is opened, but intel-undervolt
+# (§32) runs "/sbin/modprobe msr" before opening it.
 CONFIG_X86_MSR=m
 CONFIG_X86_CPUID=m
 
-# Hibernação com lz4 por padrão (§1B, §8). Dispensa o hibernate.compressor=lz4.
-# O zswap já tem zstd como padrão e o CRYPTO_ZSTD já é y na base, então o compressor está disponível
-# na initcall do zswap (§33.3).
+# Hibernation with lz4 by default (§1B, §8). Makes hibernate.compressor=lz4 unnecessary.
+# zswap already defaults to zstd and CRYPTO_ZSTD is already y in the base, so the compressor is available
+# at zswap's initcall (§33.3).
 CONFIG_HIBERNATION_COMP_LZ4=y
 
 # =====================================================================================
-# 3. Desligar: módulos carregados só por causa da configuração (§2 "Desligar")
+# 3. Disable: modules loaded only because of the configuration (§2 "Disable")
 # =====================================================================================
 
-# Bluetooth interno é Intel (btintel)
+# The internal Bluetooth is Intel (btintel)
 # CONFIG_BT_HCIBTUSB_RTL is not set
 # CONFIG_BT_HCIBTUSB_BCM is not set
 # CONFIG_BT_HCIBTUSB_MTK is not set
-# iGPU Raptor Lake no i915; dGPU no nvidia-open-dkms
-# ATENÇÃO: o DRM_XE (pelo DRM_GPUSVM) é o único que seleciona HMM_MIRROR nesta configuração, e o
-# HMM_MIRROR não tem pergunta própria no Kconfig. Sem ele, o nvidia-uvm compila sem HMM (o CUDA
-# deixa de acessar memória alocada com malloc comum; cudaMalloc e memória gerenciada continuam).
-# NVENC/NVDEC, Vulkan, NVML e PRIME não usam HMM. Para manter o HMM, trocar a linha abaixo por
-# CONFIG_DRM_XE=m (o xe compila, mas não se liga à iGPU Raptor Lake sem force_probe).
+# Raptor Lake iGPU on i915; dGPU on nvidia-open-dkms
+# WARNING: DRM_XE (through DRM_GPUSVM) is the only option that selects HMM_MIRROR in this configuration, and
+# HMM_MIRROR has no prompt of its own in the Kconfig. Without it, nvidia-uvm builds without HMM (CUDA
+# can no longer access memory allocated with plain malloc; cudaMalloc and managed memory keep working).
+# NVENC/NVDEC, Vulkan, NVML and PRIME don't use HMM. To keep HMM, replace the line below with
+# CONFIG_DRM_XE=m (xe builds, but doesn't bind to the Raptor Lake iGPU without force_probe).
 # CONFIG_DRM_XE is not set
 # CONFIG_DRM_NOUVEAU is not set
-# Áudio pelo SOF, sem dispositivo SoundWire. Nada que fica ligado seleciona o SOUNDWIRE: saem também
-# os controladores soundwire_intel/_cadence (no modprobed.db) e o soundwire_amd. SOF, HDA e SDCA ficam.
+# Audio through SOF, no SoundWire device. Nothing that stays on selects SOUNDWIRE: the
+# soundwire_intel/_cadence controllers (in modprobed.db) and soundwire_amd go too. SOF, HDA and SDCA stay.
 # CONFIG_SND_SOC_INTEL_AVS is not set
 # CONFIG_SND_SOC_SOF_INTEL_SOUNDWIRE is not set
 # CONFIG_SOUNDWIRE is not set
 
 # =====================================================================================
-# 4. Hardware ausente (§0, §33.1, §33.7)
+# 4. Absent hardware (§0, §33.1, §33.7)
 # =====================================================================================
 
-# Sem controlador SATA/AHCI no PCI (só NVMe). Discos SATA externos usam usb-storage/uas.
+# No SATA/AHCI controller on PCI (NVMe only). External SATA disks use usb-storage/uas.
 # CONFIG_ATA is not set
-# NVMe: um SSD de porta única, sem NVMe over Fabrics. Sem a autenticação do Fabrics, os módulos nvme_auth
-# e nvme_keyring (no modprobed.db só por dependência) deixam de existir.
+# NVMe: a single-port SSD, no NVMe over Fabrics. Without Fabrics authentication, the nvme_auth and
+# nvme_keyring modules (in modprobed.db only as a dependency) no longer exist.
 # CONFIG_NVME_MULTIPATH is not set
 # CONFIG_NVME_HOST_AUTH is not set
-# Núcleo DAX: sem memória persistente nem CXL, e o FS_DAX sai abaixo
+# DAX core: no persistent memory or CXL, and FS_DAX goes below
 # CONFIG_DAX is not set
-# Sem discos zonados (SMR host-managed/ZNS), sem NVDIMM/CXL (DAX, HMAT), sem doca ACPI (as docas são
-# Thunderbolt), sem troca de memória a quente, sem HBAs e SAN
+# No zoned disks (host-managed SMR/ZNS), no NVDIMM/CXL (DAX, HMAT), no ACPI dock (the docks are
+# Thunderbolt), no memory hot-swap, no HBAs or SAN
 # CONFIG_BLK_DEV_ZONED is not set
 # CONFIG_FS_DAX is not set
 # CONFIG_ACPI_HMAT is not set
@@ -228,47 +228,47 @@ CONFIG_HIBERNATION_COMP_LZ4=y
 # CONFIG_FUSION is not set
 # CONFIG_SCSI_DH is not set
 # CONFIG_NET_FC is not set
-# PCI: sem SR-IOV, TSM, LEDs de gaveta (NPEM), CompactPCI, SHPC (PCI-X) e controlador DesignWare.
-# Ficam o hotplug PCIe e o ACPI, que o Thunderbolt usa, e o P2PDMA, do qual depende o VFIO_PCI_DMABUF.
+# PCI: no SR-IOV, TSM, drive bay LEDs (NPEM), CompactPCI, SHPC (PCI-X) or DesignWare controller.
+# PCIe and ACPI hotplug stay, which Thunderbolt uses, and so does P2PDMA, which VFIO_PCI_DMABUF depends on.
 # CONFIG_PCI_IOV is not set
 # CONFIG_PCI_TSM is not set
 # CONFIG_PCI_NPEM is not set
 # CONFIG_HOTPLUG_PCI_CPCI is not set
 # CONFIG_HOTPLUG_PCI_SHPC is not set
 # CONFIG_PCIE_DW_PLAT_HOST is not set
-# Aceleradores de computação (NPU, Habana): a NPU da Intel começa no Meteor Lake
+# Compute accelerators (NPU, Habana): Intel's NPU starts with Meteor Lake
 # CONFIG_DRM_ACCEL is not set
-# Sem AGP; o i915 usa o INTEL_GTT, selecionado por ele mesmo
+# No AGP; i915 uses INTEL_GTT, which it selects itself
 # CONFIG_AGP is not set
-# Boot só por UEFI: sem VESA do BIOS legado (o simpledrm e o efifb ficam, §18, §33.3)
+# UEFI-only boot: no legacy BIOS VESA (simpledrm and efifb stay, §18, §33.3)
 # CONFIG_FB_VESA is not set
-# Sem controladores EHCI/OHCI/UHCI: só xHCI (PCH e Thunderbolt)
+# No EHCI/OHCI/UHCI controllers: xHCI only (PCH and Thunderbolt)
 # CONFIG_USB_EHCI_HCD is not set
 # CONFIG_USB_OHCI_HCD is not set
 # CONFIG_USB_UHCI_HCD is not set
-# DesignWare DMA (o LPSS usa o idma64) e DesignWare I2C PCI (§26: o LPSS usa o DesignWare platform)
+# DesignWare DMA (LPSS uses idma64) and DesignWare I2C PCI (§26: LPSS uses DesignWare platform)
 # CONFIG_DW_DMAC_PCI is not set
 # CONFIG_I2C_DESIGNWARE_PCI is not set
-# ACPI_FAN fica como m: não há ventoinha ACPI (PNP0C0B/INTC1048 ausentes), mas o INT340X_THERMAL
-# (DPTF, em uso, §22) o seleciona. O módulo fan só carrega se houver o dispositivo.
+# ACPI_FAN stays as m: there is no ACPI fan (PNP0C0B/INTC1048 absent), but INT340X_THERMAL
+# (DPTF, in use, §22) selects it. The fan module only loads if the device exists.
 CONFIG_ACPI_FAN=m
-# Sem nenhuma porta serial UART: o driver 8250 só registra as 32 portas vazias, sem nenhum "ttySN is a
-# 16550A" no dmesg e sem dispositivo PNP0501 (conferido em 2026-11-09). O "serial8250" ligado do §2 é o
-# dispositivo de plataforma que o próprio driver cria. Os adaptadores USB serial (§13) não dependem dele.
+# No UART serial port at all: the 8250 driver only registers the 32 empty ports, with no "ttySN is a
+# 16550A" in dmesg and no PNP0501 device (checked on 2026-11-09). The bound "serial8250" from §2 is the
+# platform device the driver itself creates. The USB serial adapters (§13) don't depend on it.
 # CONFIG_SERIAL_8250 is not set
 # CONFIG_SERIAL_NONSTANDARD is not set
-# Modo target SPI (o PC é o controlador)
+# SPI target mode (the PC is the controller)
 # CONFIG_SPI_SLAVE is not set
-# Barramento serdev: dispositivos ligados a UARTs internas (Bluetooth UART de SoCs); o Bluetooth aqui é USB
+# serdev bus: devices attached to internal UARTs (SoCs' UART Bluetooth); the Bluetooth here is USB
 # CONFIG_SERIAL_DEV_BUS is not set
-# Modo target I2C
+# I2C target mode
 # CONFIG_I2C_SLAVE is not set
-# Bluetooth por PCIe (Lunar Lake em diante): aqui o Bluetooth é USB
+# Bluetooth over PCIe (Lunar Lake onward): the Bluetooth here is USB
 # CONFIG_BT_INTEL_PCIE is not set
-# Offload de áudio USB pelo xHCI (plataformas Qualcomm)
+# USB audio offload through xHCI (Qualcomm platforms)
 # CONFIG_USB_XHCI_SIDEBAND is not set
-# Infraestrutura de SoC sem usuário aqui: devfreq, HTE, hwspinlock, interconnect, controladores de memória,
-# multiplexadores, reset de placa, DMA do Lightning Mountain, offload de RAID, PoE, VCAP
+# SoC infrastructure with no user here: devfreq, HTE, hwspinlock, interconnect, memory controllers,
+# multiplexers, board reset, Lightning Mountain DMA, RAID offload, PoE, VCAP
 # CONFIG_PM_DEVFREQ is not set
 # CONFIG_HTE is not set
 # CONFIG_HWSPINLOCK is not set
@@ -280,13 +280,13 @@ CONFIG_ACPI_FAN=m
 # CONFIG_ASYNC_TX_DMA is not set
 # CONFIG_PSE_CONTROLLER is not set
 # CONFIG_VCAP is not set
-# Recursos de RAS de servidor (scrub, ECS e reparo de memória por CXL/ACPI RAS2)
+# Server RAS features (scrub, ECS and memory repair through CXL/ACPI RAS2)
 # CONFIG_EDAC_SCRUB is not set
 # CONFIG_EDAC_ECS is not set
 # CONFIG_EDAC_MEM_REPAIR is not set
-# OpRegion de PMIC (Bay Trail/Cherry Trail)
+# PMIC OpRegion (Bay Trail/Cherry Trail)
 # CONFIG_PMIC_OPREGION is not set
-# PMICs de placas embarcadas, embutidos como bool (§29: "PMIC drivers não são necessários só por haver bateria")
+# Embedded boards' PMICs, built in as bool (§29: "PMIC drivers aren't needed just because there is a battery")
 # CONFIG_MFD_88PM860X is not set
 # CONFIG_MFD_AAT2870_CORE is not set
 # CONFIG_MFD_AS3711 is not set
@@ -312,15 +312,15 @@ CONFIG_ACPI_FAN=m
 # CONFIG_TWL4030_CORE is not set
 # CONFIG_TWL6040_CORE is not set
 # CONFIG_PINCTRL_SX150X is not set
-# Touchscreen e mesa digitalizadora: não há
+# Touchscreen and graphics tablet: there are none
 # CONFIG_INPUT_TOUCHSCREEN is not set
 # CONFIG_INPUT_TABLET is not set
-# Extensões PS/2 de touchpads de outros fabricantes que aparecem sem EXPERT (as demais estão no bloco 8)
+# Other vendors' PS/2 touchpad extensions that show up without EXPERT (the rest are in block 8)
 # CONFIG_MOUSE_PS2_ELANTECH is not set
 # CONFIG_MOUSE_PS2_SENTELIC is not set
 # CONFIG_MOUSE_PS2_TOUCHKIT is not set
-# TV analógica e digital, rádio, câmeras de plataforma (MIPI/IPU ausentes, §2), placas de captura PCI
-# e drivers de teste de mídia. Ficam câmera e mídia USB (webcam UVC, §10).
+# Analog and digital TV, radio, platform cameras (MIPI/IPU absent, §2), PCI capture cards
+# and media test drivers. USB camera and media stay (UVC webcam, §10).
 # CONFIG_MEDIA_ANALOG_TV_SUPPORT is not set
 # CONFIG_MEDIA_DIGITAL_TV_SUPPORT is not set
 # CONFIG_MEDIA_RADIO_SUPPORT is not set
@@ -330,51 +330,51 @@ CONFIG_ACPI_FAN=m
 # CONFIG_VIDEO_CAMERA_SENSOR is not set
 # CONFIG_VIDEO_CAMERA_LENS is not set
 # CONFIG_STAGING is not set
-# Controle remoto infravermelho (§12: "LIRC/IR considerado desnecessário"), inclusive o repasse
-# de teclas de controle remoto pelo HDMI-CEC. O CEC do i915 (DP/HDMI) fica.
+# Infrared remote control (§12: "LIRC/IR deemed unnecessary"), including remote control
+# key passthrough over HDMI-CEC. i915's CEC (DP/HDMI) stays.
 # CONFIG_LIRC is not set
 # CONFIG_MEDIA_CEC_RC is not set
 # CONFIG_RC_CORE is not set
-# Flash NAND: a única flash é a SPI NOR do firmware (§27)
+# NAND flash: the only flash is the firmware's SPI NOR (§27)
 # CONFIG_MTD_NAND_ECC_SW_HAMMING is not set
 # CONFIG_MTD_NAND_ECC_SW_BCH is not set
 # CONFIG_MTD_NAND_ECC_MXIC is not set
-# eMMC (RPMB): o leitor é de cartões SD (§9)
+# eMMC (RPMB): the reader is for SD cards (§9)
 # CONFIG_RPMB is not set
-# Interfaces de áudio USB específicas (Edirol UA-101, Tascam US-122/224/428): fora do modprobed.db
+# Specific USB audio interfaces (Edirol UA-101, Tascam US-122/224/428): not in modprobed.db
 # CONFIG_SND_USB_UA101 is not set
 # CONFIG_SND_USB_USX2Y is not set
 # CONFIG_SND_USB_US122L is not set
-# Manche Logitech G940 (os gamepads Logitech ficam, §12)
+# Logitech G940 joystick (the Logitech gamepads stay, §12)
 # CONFIG_LOGIG940_FF is not set
-# Hardware de memória ECC: os pentes não são ECC (§3)
+# ECC memory hardware: the modules aren't ECC (§3)
 # CONFIG_EDAC_IE31200 is not set
-# AlienFX pelo WMI legado: o GUID A90597CE não existe neste firmware (só o WMAX, A70591CE)
+# AlienFX through legacy WMI: GUID A90597CE doesn't exist in this firmware (only WMAX, A70591CE)
 # CONFIG_ALIENWARE_WMI_LEGACY is not set
-# USB networking: os aparelhos declarados (RPi, Android, iPhone, AX88179, RTL8152) usam
-# CDC ECM/NCM, RNDIS, ipheth, ax88179_178a e r8152. O cdc_subset é de adaptadores antigos.
+# USB networking: the declared devices (RPi, Android, iPhone, AX88179, RTL8152) use
+# CDC ECM/NCM, RNDIS, ipheth, ax88179_178a and r8152. cdc_subset is for old adapters.
 # CONFIG_USB_NET_CDC_SUBSET is not set
 
 # =====================================================================================
-# 5. Segurança e interfaces fora de uso (§33.5, decisões das seções)
+# 5. Security and unused interfaces (§33.5, the sections' decisions)
 # =====================================================================================
 
-# LSMs compilados que não estão na lista ativa (§18: landlock, lockdown, yama, integrity, bpf). O AppArmor e
-# o SELinux ficam por decisão do §31; estes não foram decididos lá e não têm uso.
+# LSMs built that aren't on the active list (§18: landlock, lockdown, yama, integrity, bpf). AppArmor and
+# SELinux stay by §31's decision; these weren't decided there and have no use.
 # CONFIG_SECURITY_SMACK is not set
 # CONFIG_SECURITY_TOMOYO is not set
 # CONFIG_SECURITY_LOADPIN is not set
 # CONFIG_SECURITY_SAFESETID is not set
 # CONFIG_SECURITY_IPE is not set
-# Descompressores de initramfs: a UKI usa zstd (§8, COMPRESSION="zstd"). Religar o do formato escolhido se
-# o mkinitcpio mudar de compressão.
+# Initramfs decompressors: the UKI uses zstd (§8, COMPRESSION="zstd"). Turn the chosen format's back on if
+# mkinitcpio changes compression.
 # CONFIG_RD_GZIP is not set
 # CONFIG_RD_BZIP2 is not set
 # CONFIG_RD_LZMA is not set
 # CONFIG_RD_XZ is not set
 # CONFIG_RD_LZO is not set
 # CONFIG_RD_LZ4 is not set
-# Tabelas de partição: ficam GPT e MBR. As demais são interpretadores de dados de qualquer mídia conectada.
+# Partition tables: GPT and MBR stay. The rest are parsers of data from any connected media.
 # CONFIG_AIX_PARTITION is not set
 # CONFIG_MAC_PARTITION is not set
 # CONFIG_BSD_DISKLABEL is not set
@@ -382,17 +382,17 @@ CONFIG_ACPI_FAN=m
 # CONFIG_SOLARIS_X86_PARTITION is not set
 # CONFIG_LDM_PARTITION is not set
 # CONFIG_KARMA_PARTITION is not set
-# Driver NTFS novo (fs/ntfs, desde o 7.1), escolha do usuário no menuconfig do 1º build (2026-11-11): mais rápido
-# que o ntfs3 na escrita e ao montar, em teste para virar o padrão (§8). Sem o NTFS_DEBUG (2026-11-13): ele só
-# serve para depurar o próprio driver (mensagens e verificações internas, para relatar bugs); a validação do que
-# vem do disco e os avisos de volume com erros funcionam sem ele.
+# New NTFS driver (fs/ntfs, since 7.1), the user's choice in the 1st build's menuconfig (2026-11-11): faster
+# than ntfs3 at writing and mounting, being tested to become the default (§8). Without NTFS_DEBUG (2026-11-13): it only
+# serves to debug the driver itself (internal messages and checks, for bug reports); validation of what
+# comes from the disk and the warnings about volumes with errors work without it.
 CONFIG_NTFS_FS=m
 # CONFIG_NTFS_DEBUG is not set
-# Contabilidade de processos BSD (DEPRECATED) e controlador RDMA dos cgroups
+# BSD process accounting (DEPRECATED) and the cgroups RDMA controller
 # CONFIG_BSD_PROCESS_ACCT is not set
 # CONFIG_CGROUP_RDMA is not set
-# Rede de datacenter, de BMC e de roteadores: DCB, MCTP, NC-SI, MPLS, PSP, switchdev, netkit, cabeçalhos de
-# roteamento IPv6 (SRv6, RPL, IOAM), protocolos de anel da bridge (MRP, CFM)
+# Datacenter, BMC and router networking: DCB, MCTP, NC-SI, MPLS, PSP, switchdev, netkit, IPv6
+# routing headers (SRv6, RPL, IOAM), bridge ring protocols (MRP, CFM)
 # CONFIG_DCB is not set
 # CONFIG_MCTP is not set
 # CONFIG_NET_NCSI is not set
@@ -405,124 +405,124 @@ CONFIG_NTFS_FS=m
 # CONFIG_IPV6_IOAM6_LWTUNNEL is not set
 # CONFIG_BRIDGE_MRP is not set
 # CONFIG_BRIDGE_CFM is not set
-# macvlan/macvtap: o libvirt usa bridge e tun (§16). O localmodconfig os mantinha por causa do módulo tap,
-# que só carregava como dependência do vhost_net.
+# macvlan/macvtap: libvirt uses bridge and tun (§16). localmodconfig kept them because of the tap module,
+# which only loaded as a dependency of vhost_net.
 # CONFIG_MACVLAN is not set
 # CONFIG_MACVTAP is not set
-# Chaves confiáveis por TEE (OP-TEE, AMD-TEE): só o TPM (§19). O módulo tee só carregava por dependência.
+# TEE trusted keys (OP-TEE, AMD-TEE): only the TPM (§19). The tee module only loaded as a dependency.
 # CONFIG_TRUSTED_KEYS_TEE is not set
 # CONFIG_TEE is not set
-# Acessibilidade por console (braille, speakup)
+# Console accessibility (braille, speakup)
 # CONFIG_ACCESSIBILITY is not set
-# TPM: interface CRB (§19). Sem TIS/FIFO.
+# TPM: CRB interface (§19). No TIS/FIFO.
 # CONFIG_TCG_TIS is not set
 # CONFIG_TCG_TIS_CORE is not set
-# /proc/i8k legado (§23)
+# Legacy /proc/i8k (§23)
 # CONFIG_I8K is not set
-# Flash SPI: fica o spi_intel_pci; sai a variante de plataforma e o spidev (§27)
+# SPI flash: spi_intel_pci stays; the platform variant and spidev go (§27)
 # CONFIG_SPI_INTEL_PLATFORM is not set
 # CONFIG_SPI_SPIDEV is not set
-# Watchdog: só o iTCO; sem pretimeout e sem softdog (§20)
+# Watchdog: iTCO only; no pretimeout and no softdog (§20)
 # CONFIG_WATCHDOG_PRETIMEOUT_GOV is not set
 # CONFIG_SOFT_WATCHDOG is not set
-# Watchdog do iAMT no MEI (§25)
+# MEI's iAMT watchdog (§25)
 # CONFIG_INTEL_MEI_WDT is not set
-# PCH thermal antigo e emulação térmica (§22)
+# Old PCH thermal and thermal emulation (§22)
 # CONFIG_INTEL_PCH_THERMAL is not set
 # CONFIG_THERMAL_EMULATION is not set
-# Emulação OSS: o PipeWire usa ALSA (§5)
+# OSS emulation: PipeWire uses ALSA (§5)
 # CONFIG_SND_OSSEMUL is not set
-# /dev/nvram (CMOS do BIOS legado): só o thinkpad_acpi o seleciona; o hwclock usa o /dev/rtc
+# /dev/nvram (legacy BIOS CMOS): only thinkpad_acpi selects it; hwclock uses /dev/rtc
 # CONFIG_NVRAM is not set
 
-# Endurecimento (§0: segurança acima de performance). Regra: toda alavanca de segurança ligada, exceto as que o
-# Kconfig manda deixar em N na dúvida ("If unsure, say N" ou equivalente) e as que quebrariam um uso declarado. As proteções da base continuam: KERNEL_IBT, shadow stack,
+# Hardening (§0: security above performance). Rule: every security lever on, except those the
+# Kconfig says to leave at N when in doubt ("If unsure, say N" or equivalent) and those that would break a declared use. The base's protections remain: KERNEL_IBT, shadow stack,
 # INIT_STACK_ALL_ZERO, INIT_ON_ALLOC, HARDENED_USERCOPY, FORTIFY_SOURCE, SLAB_FREELIST_*, RANDOMIZE_KSTACK_OFFSET.
 #
-# Zera a memória ao liberar, além de ao alocar: dados apagados não ficam no heap. Custa mais que o
-# init_on_alloc (Kconfig: "more expensive [...] due to the negative cache effects"). Para medir sem
-# recompilar, init_on_free=0 na linha de comando desliga.
+# Zeroes memory when freeing it, besides when allocating: erased data doesn't linger on the heap. Costs more than
+# init_on_alloc (Kconfig: "more expensive [...] due to the negative cache effects"). To measure without
+# rebuilding, init_on_free=0 on the command line turns it off.
 CONFIG_INIT_ON_FREE_DEFAULT_ON=y
-# Zera os registradores na saída das funções: menos vazamento por canal lateral e cerca de 20% menos gadgets
-# de ROP. Kconfig: "less than 1% performance impact on most workloads".
+# Zeroes the registers on function exit: less side-channel leakage and about 20% fewer ROP
+# gadgets. Kconfig: "less than 1% performance impact on most workloads".
 CONFIG_ZERO_CALL_USED_REGS=y
-# Caches do slab separados: um estouro de heap só atinge objetos do mesmo cache. Custa um pouco de
-# fragmentação de memória (equivale ao slab_nomerge).
+# Separate slab caches: a heap overflow only reaches objects in the same cache. Costs some
+# memory fragmentation (equivalent to slab_nomerge).
 # CONFIG_SLAB_MERGE_DEFAULT is not set
-# /proc/PID/mem nunca ignora as permissões das páginas. O gdb continua inserindo breakpoints pelo ptrace.
+# /proc/PID/mem never ignores page permissions. gdb still inserts breakpoints through ptrace.
 CONFIG_PROC_MEM_NO_FORCE=y
-# Várias cópias isoladas dos caches de kmalloc: objetos de subsistemas diferentes não ficam lado a lado
+# Several isolated copies of the kmalloc caches: objects from different subsystems don't sit side by side
 CONFIG_KMALLOC_PARTITION_CACHES=y
-# Módulo sem assinatura válida não carrega (antes só marcava o kernel como tainted). Os módulos do kernel são
-# assinados no build (MODULE_SIG_ALL), e os do DKMS (nvidia, kvmfr) com a MOK, na qual o kernel confia pelo
-# keyring da máquina (§18). Se a assinatura do DKMS falhar, o nvidia não carrega: use o linux ou o linux-zen.
+# A module without a valid signature doesn't load (before, it only marked the kernel as tainted). The kernel's modules are
+# signed at build time (MODULE_SIG_ALL), and the DKMS ones (nvidia, kvmfr) with the MOK, which the kernel trusts through the
+# machine keyring (§18). If DKMS signing fails, nvidia doesn't load: use linux or linux-zen.
 CONFIG_MODULE_SIG_FORCE=y
-# Lockdown iniciado antes dos outros LSMs. Com o lockdown forçado em "none" (§18: o modo integrity impede a
-# hibernação), só tem efeito se um dia o lockdown for ligado.
+# Lockdown started before the other LSMs. With lockdown forced to "none" (§18: integrity mode prevents
+# hibernation), it only has an effect if lockdown is ever turned on.
 CONFIG_SECURITY_LOCKDOWN_LSM_EARLY=y
-# UBSAN fora (2026-11-13): sem o trap ele só avisa no dmesg, sem proteger nada, e o custo das verificações fica
-# em todo o kernel e nos módulos do DKMS; com o trap, comportamentos inofensivos derrubariam o kernel ou o nvidia.
-# Sem uso realista como debug (§33.6).
+# UBSAN out (2026-11-13): without the trap it only warns in dmesg, protecting nothing, and the cost of the checks stays
+# across the whole kernel and the DKMS modules; with the trap, harmless behavior would bring down the kernel or nvidia.
+# No realistic use as debugging (§33.6).
 # CONFIG_UBSAN is not set
-# modprobe --force e rmmod -f. Kconfig: "usually a really bad idea" e "If unsure, say N".
+# modprobe --force and rmmod -f. Kconfig: "usually a really bad idea" and "If unsure, say N".
 # CONFIG_MODULE_FORCE_LOAD is not set
 # CONFIG_MODULE_FORCE_UNLOAD is not set
-# Disciplinas de linha antigas (N_HDLC, N_GSM, PPP...) não carregam mais por pedido de usuário comum.
-# Nenhuma é usada; o root ainda pode carregá-las.
+# Old line disciplines (N_HDLC, N_GSM, PPP...) no longer load on an ordinary user's request.
+# None is used; root can still load them.
 # CONFIG_LDISC_AUTOLOAD is not set
 #
-# Ficam em N porque o Kconfig manda: BUG_ON_DATA_CORRUPTION e PANIC_ON_OOPS ("If unsure, say N"),
+# Stay at N because the Kconfig says so: BUG_ON_DATA_CORRUPTION and PANIC_ON_OOPS ("If unsure, say N"),
 # PAGE_TABLE_CHECK ("If unsure say n"), STRICT_SIGALTSTACK_SIZE ("Say 'N' unless you want to really enforce"),
-# IMA e EVM ("answer N"), além de MODULE_FORCE_UNLOAD e SYSFS_SYSCALL, já desligados acima ou na base.
+# IMA and EVM ("answer N"), plus MODULE_FORCE_UNLOAD and SYSFS_SYSCALL, already off above or in the base.
 # CONFIG_BUG_ON_DATA_CORRUPTION is not set
 # CONFIG_PANIC_ON_OOPS is not set
 # CONFIG_PAGE_TABLE_CHECK is not set
 # CONFIG_STRICT_SIGALTSTACK_SIZE is not set
 #
-# Ficam desligadas porque quebrariam usos declarados:
-# - STATIC_USERMODEHELPER: todas as chamadas a programas do espaço de usuário (modprobe dos módulos carregados
-#   sob demanda, systemd-coredump) passariam por um único binário intermediário, que o Arch não tem
-# - LOCK_DOWN_KERNEL_FORCE_INTEGRITY/CONFIDENTIALITY: impedem a hibernação (§18)
-# - SECURITY_LOADPIN: só aceita módulos e firmware do primeiro sistema de arquivos usado, o initramfs
-# - MODIFY_LDT_SYSCALL e X86_16BIT (bloco 8): o Wine precisa deles
-# - INTEGRITY_CA_MACHINE_KEYRING: só põe no keyring da máquina as MOKs com CA:TRUE e keyUsage keyCertSign
-#   (restrict_link_by_ca). MOK.crt e MOK-module-signing.crt têm CA:TRUE mas nenhum keyUsage (conferido em
-#   2026-11-10): iriam para o keyring da plataforma, que não vale para módulos, e com o MODULE_SIG_FORCE o
-#   nvidia e o kvmfr deixariam de carregar
+# Stay off because they would break declared uses:
+# - STATIC_USERMODEHELPER: every call to userspace programs (modprobe for modules loaded
+#   on demand, systemd-coredump) would go through a single intermediate binary, which Arch doesn't have
+# - LOCK_DOWN_KERNEL_FORCE_INTEGRITY/CONFIDENTIALITY: they prevent hibernation (§18)
+# - SECURITY_LOADPIN: only accepts modules and firmware from the first filesystem used, the initramfs
+# - MODIFY_LDT_SYSCALL and X86_16BIT (block 8): Wine needs them
+# - INTEGRITY_CA_MACHINE_KEYRING: only puts MOKs with CA:TRUE and keyUsage keyCertSign in the machine keyring
+#   (restrict_link_by_ca). MOK.crt and MOK-module-signing.crt have CA:TRUE but no keyUsage (checked on
+#   2026-11-10): they would go to the platform keyring, which doesn't apply to modules, and with MODULE_SIG_FORCE
+#   nvidia and kvmfr would stop loading
 #
-# Não disponíveis com GCC: CFI (o GCC 16.2 não aceita -fsanitize=kcfi, conferido em 2026-11-10),
-# KSTACK_ERASE (exige o callback de profundidade de pilha do Clang) e RANDSTRUCT (quebraria os módulos DKMS
-# com objetos pré-compilados).
+# Not available with GCC: CFI (GCC 16.2 doesn't accept -fsanitize=kcfi, checked on 2026-11-10),
+# KSTACK_ERASE (requires Clang's stack depth callback) and RANDSTRUCT (would break the DKMS modules
+# with precompiled objects).
 
-# Contadores de debug que ninguém lê, incrementados em caminhos quentes (locks e mudança de atributos de página)
+# Debug counters nobody reads, incremented on hot paths (locks and page attribute changes)
 # CONFIG_LOCK_EVENT_COUNTS is not set
 # CONFIG_X86_CPA_STATISTICS is not set
 
 # =====================================================================================
-# 6. Embutido → módulo (§0, §19, §33.2, §33.3)
+# 6. Built-in → module (§0, §19, §33.2, §33.3)
 # =====================================================================================
 
-# Ficam embutidas: BINFMT_SCRIPT, FW_LOADER, EFI_VARS_PSTORE (crashes desde o boot), TCP_CONG_CUBIC (o padrão
-# do TCP precisa ser embutido; como módulo, o kernel cai para o Reno) e EFIVAR_FS (o systemd do initramfs lê a
-# variável EFI HibernateLocation para achar a imagem de hibernação, sem resume= na linha de comando). As demais embutidas são selecionadas por
-# opções embutidas e não podem mudar.
+# Stay built in: BINFMT_SCRIPT, FW_LOADER, EFI_VARS_PSTORE (crashes from early boot), TCP_CONG_CUBIC (the TCP
+# default must be built in; as a module, the kernel falls back to Reno) and EFIVAR_FS (the initramfs's systemd reads the
+# HibernateLocation EFI variable to find the hibernation image, with no resume= on the command line). The other built-in ones are selected by
+# built-in options and can't change.
 #
 CONFIG_EFIVAR_FS=y
-# Voltaram para y depois do 1º build (2026-11-11):
-# - DRM, DRM_SIMPLEDRM e FB: tela desde o início do kernel (erros e panics antes do initramfs aparecem) e o
-#   prompt do LUKS sem depender do MODULES; o i915 e o nvidia_drm carregam o núcleo DRM em todo boot de qualquer forma
-# - ACPI_THERMAL: Kconfig "HIGHLY recommended"; como módulo, as zonas térmicas do firmware só valiam depois do LUKS
-# - RTC_DRV_CMOS: relógio certo desde o boot (RTC_HCTOSYS), inclusive no journal do initramfs
+# Back to y after the 1st build (2026-11-11):
+# - DRM, DRM_SIMPLEDRM and FB: display from the start of the kernel (errors and panics before the initramfs show up) and
+#   the LUKS prompt without depending on MODULES; i915 and nvidia_drm load the DRM core on every boot anyway
+# - ACPI_THERMAL: Kconfig "HIGHLY recommended"; as a module, the firmware's thermal zones only applied after LUKS
+# - RTC_DRV_CMOS: correct clock from boot (RTC_HCTOSYS), including in the initramfs's journal
 CONFIG_DRM=y
 CONFIG_DRM_SIMPLEDRM=y
 CONFIG_FB=y
 CONFIG_ACPI_THERMAL=y
 CONFIG_RTC_DRV_CMOS=y
 #
-# Viraram módulo no menuconfig do 1º build (2026-11-11), por escolha do usuário. Consequências conferidas:
-# - MQ_IOSCHED_DEADLINE: o kernel não o carrega sozinho; uma regra do udev o pede para discos USB e SD
-# - CONNECTOR: o PROC_EVENTS (eventos de fork/exec/exit por netlink) exige y e some
-# - NET_SCH_FQ_CODEL: o sysctl net.core.default_qdisc do systemd (50-default.conf) o carrega no boot
+# Turned into modules in the 1st build's menuconfig (2026-11-11), by the user's choice. Consequences checked:
+# - MQ_IOSCHED_DEADLINE: the kernel doesn't load it by itself; a udev rule requests it for USB disks and SD cards
+# - CONNECTOR: PROC_EVENTS (fork/exec/exit events over netlink) requires y and goes away
+# - NET_SCH_FQ_CODEL: systemd's net.core.default_qdisc sysctl (50-default.conf) loads it at boot
 CONFIG_IKCONFIG=m
 CONFIG_IKHEADERS=m
 CONFIG_MQ_IOSCHED_DEADLINE=m
@@ -547,8 +547,8 @@ CONFIG_CRYPTO_JITTERENTROPY=m
 CONFIG_CRYPTO_PCRYPT=m
 CONFIG_CRYPTO_LZ4HC=m
 #
-# Podem ser m sem mudar o mkinitcpio (§33.3): o autodetect e os hooks já os põem na UKI.
-# O núcleo NLS fica y: o ACPI e o USB, embutidos, o selecionam. As codepages viram módulos.
+# Can be m without changing mkinitcpio (§33.3): autodetect and the hooks already put them in the UKI.
+# The NLS core stays y: ACPI and USB, built in, select it. The codepages become modules.
 CONFIG_TCG_TPM=m
 CONFIG_TCG_CRB=m
 CONFIG_BTRFS_FS=m
@@ -561,16 +561,16 @@ CONFIG_SERIO_I8042=m
 CONFIG_KEYBOARD_ATKBD=m
 CONFIG_NLS_CODEPAGE_437=m
 CONFIG_NLS_ASCII=m
-# Disco: o hook block sempre inclui sd_mod (e o scsi_mod vem como dependência)
+# Disk: the block hook always includes sd_mod (and scsi_mod comes as a dependency)
 CONFIG_SCSI=m
 CONFIG_BLK_DEV_SD=m
-# I2C DesignWare do LPSS (§26: "pode ser modular"); o core I2C fica y
+# LPSS's DesignWare I2C (§26: "can be modular"); the I2C core stays y
 CONFIG_I2C_DESIGNWARE_CORE=m
 CONFIG_I2C_DESIGNWARE_PLATFORM=m
-# Carregados sob demanda: escalonadores de E/S ao escrever em /sys/block/*/queue/scheduler (fica embutido o
-# mq-deadline, padrão dos discos USB, que o kernel não carrega sozinho); governors genéricos do cpufreq (o
-# intel_pstate em modo active não os usa; o kernel os carrega ao escolher um em scaling_governor); algoritmos
-# de criptografia, pelos aliases crypto-* (o hook sd-encrypt põe todos no initramfs, §33.3)
+# Loaded on demand: I/O schedulers when writing to /sys/block/*/queue/scheduler (mq-deadline, which the
+# kernel doesn't load by itself, is requested by a udev rule for USB disks and SD cards); generic cpufreq governors (
+# intel_pstate in active mode doesn't use them; the kernel loads one when it's chosen in scaling_governor); crypto
+# algorithms, through the crypto-* aliases (the sd-encrypt hook puts all of them in the initramfs, §33.3)
 CONFIG_IOSCHED_BFQ=m
 CONFIG_MQ_IOSCHED_KYBER=m
 CONFIG_CPU_FREQ_GOV_POWERSAVE=m
@@ -588,8 +588,8 @@ CONFIG_CRYPTO_SHA3=m
 CONFIG_CRYPTO_BLAKE2B=m
 CONFIG_CRYPTO_XXHASH=m
 CONFIG_CRYPTO_CRC32C=m
-# Sem usuário no boot: núcleo de hwrng (só o TPM, também módulo, o usa), heaps de dma-buf, extcon, tabelas DMI
-# brutas em /sys/firmware/dmi/entries, pci-stub (o passthrough usa o vfio-pci), drop_monitor (dropwatch)
+# No user at boot: the hwrng core (only the TPM, also a module, uses it), dma-buf heaps, extcon, raw DMI tables
+# in /sys/firmware/dmi/entries, pci-stub (passthrough uses vfio-pci), drop_monitor (dropwatch)
 CONFIG_HW_RANDOM=m
 CONFIG_DMABUF_HEAPS_SYSTEM=m
 CONFIG_DMABUF_HEAPS_CMA=m
@@ -597,7 +597,7 @@ CONFIG_EXTCON=m
 CONFIG_DMI_SYSFS=m
 CONFIG_PCI_STUB=m
 CONFIG_NET_DROP_MONITOR=m
-# Carregados por udev, pelo systemd ou ao montar; nenhum é usado antes do initramfs
+# Loaded by udev, by systemd or on mount; none is used before the initramfs
 CONFIG_FUSE_FS=m
 CONFIG_AUTOFS_FS=m
 CONFIG_CONFIGFS_FS=m
@@ -606,17 +606,17 @@ CONFIG_ACPI_AC=m
 CONFIG_ACPI_BATTERY=m
 CONFIG_ACPI_BUTTON=m
 CONFIG_USB_SERIAL=m
-# ext4 não é declarado, mas é o sistema de arquivos do cartão de um Raspberry Pi (§13). Fica como
-# módulo em vez de embutido.
+# ext4 isn't declared, but it's the filesystem of a Raspberry Pi's card (§13). It stays as
+# a module instead of built in.
 CONFIG_EXT4_FS=m
 
 # =====================================================================================
-# 7. Rede de segurança: módulos de uso raro já declarados (§31)
+# 7. Safety net: already declared rarely used modules (§31)
 # =====================================================================================
-# Se o modprobed-db não os tiver visto, o localmodconfig os desliga; o fragmento os religa.
-# Pedir um valor m para uma opção que já é m não muda nada.
+# If modprobed-db hasn't seen them, localmodconfig turns them off; the fragment turns them back on.
+# Requesting m for an option that is already m changes nothing.
 
-# Mídias externas e imagens (§8): exFAT, FAT, ISO 9660 com Joliet/Rock Ridge/zisofs, UDF, loop, nbd, uas
+# External media and images (§8): exFAT, FAT, ISO 9660 with Joliet/Rock Ridge/zisofs, UDF, loop, nbd, uas
 CONFIG_EXFAT_FS=m
 CONFIG_VFAT_FS=m
 CONFIG_NLS_UTF8=m
@@ -630,7 +630,7 @@ CONFIG_BLK_DEV_NBD=m
 CONFIG_USB_STORAGE=m
 CONFIG_USB_UAS=m
 CONFIG_CHR_DEV_SG=m
-# Hibernação lz4 (§1B)
+# lz4 hibernation (§1B)
 CONFIG_CRYPTO_LZ4=y
 
 # USB serial: Arduino/ESP32/RPi (§13)
@@ -641,7 +641,7 @@ CONFIG_USB_SERIAL_CP210X=m
 CONFIG_USB_SERIAL_FTDI_SIO=m
 CONFIG_USB_SERIAL_PL2303=m
 
-# USB networking e telefones (§6, §13, §14)
+# USB networking and phones (§6, §13, §14)
 CONFIG_USB_NET_AX88179_178A=m
 CONFIG_USB_NET_CDCETHER=m
 CONFIG_USB_NET_CDC_NCM=m
@@ -649,7 +649,7 @@ CONFIG_USB_NET_RNDIS_HOST=m
 CONFIG_USB_RTL8152=m
 CONFIG_USB_IPHETH=m
 
-# Gamepads e Steam Input (§12)
+# Gamepads and Steam Input (§12)
 CONFIG_JOYSTICK_XPAD=m
 CONFIG_JOYSTICK_XPAD_FF=y
 CONFIG_JOYSTICK_XPAD_LEDS=y
@@ -664,34 +664,34 @@ CONFIG_NINTENDO_FF=y
 CONFIG_HID_MICROSOFT=m
 CONFIG_HID_LOGITECH=m
 CONFIG_LOGITECH_FF=y
-# Volantes: o usuário ainda não tem um (§12, 2026-11-10). Ao comprar, religar o driver da marca: para os
-# Logitech G25/G27/G29/G920, LOGIWHEELS_FF; para os que seguem o padrão USB PID, HID_PID.
+# Racing wheels: the user doesn't have one yet (§12, 2026-11-10). After buying one, turn the brand's driver back on: for
+# Logitech G25/G27/G29/G920, LOGIWHEELS_FF; for those following the USB PID standard, HID_PID.
 # CONFIG_LOGIWHEELS_FF is not set
 # CONFIG_HID_PID is not set
 CONFIG_USB_HIDDEV=y
 CONFIG_INPUT_UINPUT=m
 CONFIG_INPUT_JOYDEV=m
 
-# SMBus do PCH: SPD5118 da RAM e o iTCO (§20, §23, §26)
+# The PCH's SMBus: the RAM's SPD5118 and iTCO (§20, §23, §26)
 CONFIG_I2C_I801=m
 
 # Logitech HID (§11)
 CONFIG_HID_LOGITECH_DJ=m
 CONFIG_HID_LOGITECH_HIDPP=m
 
-# Bluetooth: HID, áudio e rede (§6, §12)
+# Bluetooth: HID, audio and networking (§6, §12)
 CONFIG_BT_HIDP=m
 CONFIG_BT_RFCOMM=m
 CONFIG_BT_BNEP=m
 CONFIG_UHID=m
 
-# Áudio USB e MIDI (§5)
+# USB audio and MIDI (§5)
 CONFIG_SND_USB_AUDIO=m
 CONFIG_SND_SEQUENCER=m
 CONFIG_SND_SEQ_DUMMY=m
 CONFIG_SND_SEQ_HRTIMER_DEFAULT=y
 
-# Virtualização (§16)
+# Virtualization (§16)
 CONFIG_KVM=m
 CONFIG_KVM_INTEL=m
 CONFIG_KVM_HYPERV=y
@@ -706,7 +706,7 @@ CONFIG_BLK_DEV_DM=m
 # VPN (§6)
 CONFIG_WIREGUARD=m
 
-# QoS (§6): fq_codel padrão (módulo desde o 1º build; o tkg trocaria o padrão para o CAKE), FQ e CAKE como módulos
+# QoS (§6): fq_codel as the default (a module since the 1st build; tkg would switch the default to CAKE), FQ and CAKE as modules
 CONFIG_NET_SCH_FQ_CODEL=m
 CONFIG_DEFAULT_FQ_CODEL=y
 CONFIG_NET_SCH_FQ=m
@@ -717,23 +717,23 @@ CONFIG_NET_CLS_MATCHALL=m
 CONFIG_NET_ACT_GACT=m
 CONFIG_NET_ACT_MIRRED=m
 
-# Jogos (§17)
+# Games (§17)
 CONFIG_NTSYNC=m
 
 # =====================================================================================
-# 8. O que só pode sair com EXPERT
+# 8. What can only go away with EXPERT
 # =====================================================================================
-# Estas opções só aparecem com EXPERT=y. O EXPERT só revela perguntas; testado no 7.2.15, ligá-lo não muda
-# nenhuma outra opção desta configuração.
+# These options only show up with EXPERT=y. EXPERT only reveals prompts; tested on 7.2.15, turning it on changes
+# no other option in this configuration.
 #
 CONFIG_EXPERT=y
-# Suporte a CPUs AMD, Hygon, Centaur (VIA) e Zhaoxin
+# Support for AMD, Hygon, Centaur (VIA) and Zhaoxin CPUs
 CONFIG_PROCESSOR_SELECT=y
 # CONFIG_CPU_SUP_AMD is not set
 # CONFIG_CPU_SUP_HYGON is not set
 # CONFIG_CPU_SUP_CENTAUR is not set
 # CONFIG_CPU_SUP_ZHAOXIN is not set
-# Protocolos PS/2 de touchpads e trackpoints de outros fabricantes
+# Other vendors' PS/2 protocols for touchpads and trackpoints
 # CONFIG_MOUSE_PS2_ALPS is not set
 # CONFIG_MOUSE_PS2_BYD is not set
 # CONFIG_MOUSE_PS2_CYPRESS is not set
@@ -741,24 +741,24 @@ CONFIG_PROCESSOR_SELECT=y
 # CONFIG_MOUSE_PS2_LIFEBOOK is not set
 # CONFIG_MOUSE_PS2_LOGIPS2PP is not set
 # CONFIG_MOUSE_PS2_TRACKPOINT is not set
-# /dev/gpiochipN e a ABI v1 desnecessários (§28)
+# /dev/gpiochipN and the v1 ABI unnecessary (§28)
 # CONFIG_GPIO_CDEV is not set
-# Interfaces antigas (§33.5): syscalls de UID de 16 bits e sgetmask/ssetmask (obsoletas, a libc não as usa)
+# Legacy interfaces (§33.5): 16-bit UID syscalls and sgetmask/ssetmask (obsolete, libc doesn't use them)
 # CONFIG_UID16 is not set
 # CONFIG_SGETMASK_SYSCALL is not set
-# Emulação da página vsyscall: só binários estáticos de glibc anteriores a 2011 a usam; sem ela, não existe
-# endereço fixo mapeado em todo processo (equivale a vsyscall=none)
+# vsyscall page emulation: only static glibc binaries from before 2011 use it; without it, there is no
+# fixed address mapped in every process (equivalent to vsyscall=none)
 # CONFIG_X86_VSYSCALL_EMULATION is not set
-# Coredumps de dispositivos (firmware do Wi-Fi, GPU), ligado no 1º build para depurar o iwlwifi e o i915.
-# Kconfig: "Say 'N' for more sensitive systems"; o dump só é legível pelo root e some em 5 minutos.
+# Device coredumps (Wi-Fi firmware, GPU), turned on in the 1st build to debug iwlwifi and i915.
+# Kconfig: "If unsure, say Y", with only a note to "Say 'N' for more sensitive systems"; the dump is only readable by root and disappears after 5 minutes.
 CONFIG_ALLOW_DEV_COREDUMP=y
-# Mapas de memória do firmware em /sys/firmware: só o kexec, que saiu, os usa
+# Firmware memory maps in /sys/firmware: only kexec, which went away, uses them
 # CONFIG_EFI_RUNTIME_MAP is not set
 # CONFIG_FIRMWARE_MEMMAP is not set
-# Console de texto VGA: o boot é só UEFI, e o console usa o framebuffer
+# VGA text console: boot is UEFI only, and the console uses the framebuffer
 # CONFIG_VGA_CONSOLE is not set
-# Codecs HD-audio que não existem aqui: o codec é da família ALC269 e os HDMI são o da Intel e o da NVIDIA
-# (snd_hda_codec_alc269, _intelhdmi e _nvhdmi no modprobed.db)
+# HD-audio codecs that don't exist here: the codec is from the ALC269 family and the HDMI ones are Intel's and NVIDIA's
+# (snd_hda_codec_alc269, _intelhdmi and _nvhdmi in modprobed.db)
 # CONFIG_SND_HDA_CODEC_ALC260 is not set
 # CONFIG_SND_HDA_CODEC_ALC262 is not set
 # CONFIG_SND_HDA_CODEC_ALC268 is not set
@@ -773,18 +773,18 @@ CONFIG_ALLOW_DEV_COREDUMP=y
 # CONFIG_SND_HDA_CODEC_HDMI_TEGRA is not set
 
 # =====================================================================================
-# 9. Escolhas e correções do 1º build (2026-11-11)
+# 9. The 1st build's choices and fixes (2026-11-11)
 # =====================================================================================
-# O menuconfig-diff.txt não é reaplicado no build seguinte: o que foi escolhido no menuconfig e ficou está aqui.
+# menuconfig-diff.txt isn't reapplied on the next build: what was chosen in menuconfig and kept is here.
 
-# Correções: o sd-encrypt exige o dm-integrity ("module not found: 'dm_integrity'" no mkinitcpio), e o tkg
-# desliga o SYSFB_SIMPLEFB (prepare: _disable "SYSFB_SIMPLEFB"), o que deixa o simpledrm sem framebuffer e o
-# prompt do LUKS invisível. O fragmento é aplicado depois dos ajustes do tkg e os desfaz.
+# Fixes: sd-encrypt requires dm-integrity ("module not found: 'dm_integrity'" in mkinitcpio), and tkg
+# turns off SYSFB_SIMPLEFB (prepare: _disable "SYSFB_SIMPLEFB"), which leaves simpledrm without a framebuffer and the
+# LUKS prompt invisible. The fragment is applied after tkg's tweaks and undoes them.
 CONFIG_DM_INTEGRITY=m
 CONFIG_SYSFB_SIMPLEFB=y
 
-# TCP: o padrão precisa ser embutido. Os outros algoritmos saem (2026-11-13: Westwood+, Vegas, YeAH e BBR não
-# são usados; os demais o localmodconfig já tira).
+# TCP: the default must be built in. The other algorithms go (2026-11-13: Westwood+, Vegas, YeAH and BBR aren't
+# used; localmodconfig already removes the rest).
 CONFIG_TCP_CONG_CUBIC=y
 CONFIG_DEFAULT_CUBIC=y
 # CONFIG_TCP_CONG_WESTWOOD is not set
@@ -792,67 +792,67 @@ CONFIG_DEFAULT_CUBIC=y
 # CONFIG_TCP_CONG_YEAH is not set
 # CONFIG_TCP_CONG_BBR is not set
 
-# Compilado só para esta CPU (-march=native). O kernel deixa de bootar em outra máquina, o que aqui é intencional (§0).
+# Built only for this CPU (-march=native). The kernel no longer boots on another machine, which is intentional here (§0).
 CONFIG_X86_NATIVE_CPU=y
 
-# Watchdog de suspend/resume: avisa aos 60 s e dá panic aos 120 s (gravado no pstore) se um driver travar o
-# suspend ou o resume, o tipo de falha do travamento de 2026-11-10 (§32A.16).
+# Suspend/resume watchdog: warns at 60 s and panics at 120 s (saved to pstore) if a driver hangs
+# suspend or resume, the kind of failure behind the 2026-11-10 hang (§32A.16).
 CONFIG_DPM_WATCHDOG=y
 CONFIG_DPM_WATCHDOG_TIMEOUT=120
 CONFIG_DPM_WATCHDOG_WARNING_TIMEOUT=60
 
-# Leitura e escrita no EC por /sys/kernel/debug/ec: ligado no menuconfig do 1º build e retirado em seguida. O
-# Kconfig avisa que escrever valores errados pode confundir o EC a ponto de exigir tirar a bateria.
+# Reading and writing the EC through /sys/kernel/debug/ec: turned on in the 1st build's menuconfig and removed right after. The
+# Kconfig warns that writing wrong values can confuse the EC badly enough to require pulling the battery.
 # CONFIG_ACPI_EC_DEBUGFS is not set
 
-# THP só para quem pede com madvise (decisão do 1º build; antes "always")
+# THP only for those who ask with madvise (the 1st build's decision; "always" before)
 # CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS is not set
 CONFIG_TRANSPARENT_HUGEPAGE_MADVISE=y
-# HVO ligado por padrão nas páginas HugeTLB (as VMs com hugepages, §16)
+# HVO on by default for HugeTLB pages (the VMs with hugepages, §16)
 CONFIG_HUGETLB_PAGE_OPTIMIZE_VMEMMAP_DEFAULT_ON=y
 
-# EDID repassado pelo firmware (o da tela do boot): só o simpledrm o usaria. O i915 e o nvidia leem o EDID de cada
-# saída direto do painel e dos monitores (2026-11-13).
+# EDID passed on by the firmware (the boot display's): only simpledrm would use it. i915 and nvidia read each
+# output's EDID straight from the panel and the monitors (2026-11-13).
 # CONFIG_FIRMWARE_EDID is not set
 
-# SOF: o controlador de áudio do RPL-S (8086:7a50) está na lista do pci-tgl.c, habilitada pelo ALDERLAKE
+# SOF: the RPL-S audio controller (8086:7a50) is on pci-tgl.c's list, enabled by ALDERLAKE
 # CONFIG_SND_SOC_SOF_TIGERLAKE is not set
 CONFIG_SND_SOC_SOF_ALDERLAKE=m
 
-# USB: impressora local (a de casa é de rede, §8). O USB_STORAGE_DEBUG, ligado no menuconfig, saiu: grava no
-# journal uma mensagem por comando enviado ao pendrive, sem como desligar (drivers/usb/storage/debug.c).
+# USB: local printer (the one at home is a network printer, §15). USB_STORAGE_DEBUG, turned on in menuconfig, went away: it writes
+# a journal message for every command sent to a USB drive, with no way to turn it off (drivers/usb/storage/debug.c).
 CONFIG_USB_PRINTER=m
 # CONFIG_USB_STORAGE_DEBUG is not set
 
-# Gatilhos de LED: sem MTD aqui; o de CPU acende LEDs por atividade de cada núcleo e não há LED para isso; o de
-# câmera é para LEDs de flash de câmeras de plataforma (MIPI), e o LED da webcam UVC é controlado pelo hardware
+# LED triggers: no MTD here; the CPU one lights LEDs on each core's activity and there is no LED for that; the
+# camera one is for platform cameras' (MIPI) flash LEDs, and the UVC webcam's LED is controlled by the hardware
 # CONFIG_LEDS_TRIGGER_MTD is not set
 # CONFIG_LEDS_TRIGGER_CPU is not set
 # CONFIG_LEDS_TRIGGER_CAMERA is not set
 
-# Verificação da API de bitmap do Rust ("If unsure, say N", mas escolhido pelo usuário; custo só no código Rust)
+# Rust bitmap API checks ("If unsure, say N", but chosen by the user; cost only in Rust code)
 CONFIG_RUST_BITMAP_HARDENED=y
 
-# Autotestes dos algoritmos do crypto API no registro (o Kconfig cita bloquear drivers com bugs); sem o FULL
+# Self-tests of the crypto API algorithms at registration (the Kconfig mentions blocking buggy drivers); without FULL
 CONFIG_CRYPTO_SELFTESTS=y
 # CONFIG_CRYPTO_SELFTESTS_FULL is not set
-# Aceleradores de criptografia (QAT, CCP, VIA Padlock e afins): não existem aqui. O AES-NI e o SHA-NI da CPU
-# ficam em "Accelerated Cryptographic Algorithms for CPU" e não dependem disto.
+# Cryptography accelerators (QAT, CCP, VIA Padlock and the like): they don't exist here. The CPU's AES-NI and SHA-NI
+# are in "Accelerated Cryptographic Algorithms for CPU" and don't depend on this.
 # CONFIG_CRYPTO_HW is not set
 
-# kmemleak fora (2026-11-13): mesmo desligado em runtime, os ganchos ficam em cada alocação de memória, e caçar
-# vazamentos dentro do kernel não é um uso realista aqui (§33.6).
+# kmemleak out (2026-11-13): even when off at runtime, its hooks stay on every memory allocation, and hunting
+# leaks inside the kernel isn't a realistic use here (§33.6).
 # CONFIG_DEBUG_KMEMLEAK is not set
-# Autoteste do NMI no boot, uma vez ("If unsure, say N", mas escolhido pelo usuário; custo só no boot)
+# NMI self-test at boot, once ("If unsure, say N", but chosen by the user; cost only at boot)
 CONFIG_DEBUG_NMI_SELFTEST=y
 
-# Crashlog da CPU (firmware: Cpu CrashLog ligado, 2026-11-12): registro do estado da CPU num erro grave de
-# hardware, que sobrevive ao reboot e complementa o pstore (§32A.16). Lido em /sys/class/intel_pmt/crashlog*.
-# O localmodconfig o tirava porque o dispositivo estava desligado no firmware.
+# CPU crashlog (firmware: Cpu CrashLog on, 2026-11-12): a record of the CPU's state on a severe hardware
+# error, which survives a reboot and complements pstore (§32A.16). Read in /sys/class/intel_pmt/crashlog*.
+# localmodconfig was removing it because the device was off in the firmware.
 CONFIG_INTEL_PMT_CRASHLOG=m
 
-# Menus de fabricantes de Ethernet e Wi-Fi: só escondem perguntas, mas ficavam ligados (o localmodconfig já tira
-# os drivers). Ficam o Realtek (r8169) e o Intel do Wi-Fi (iwlwifi).
+# Ethernet and Wi-Fi vendor menus: they only hide prompts, but they stayed on (localmodconfig already removes
+# the drivers). Realtek (r8169) and Intel for Wi-Fi (iwlwifi) stay.
 # CONFIG_NET_VENDOR_3COM is not set
 # CONFIG_NET_VENDOR_ADAPTEC is not set
 # CONFIG_NET_VENDOR_AGERE is not set

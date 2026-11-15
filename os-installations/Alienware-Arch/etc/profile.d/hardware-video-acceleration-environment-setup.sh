@@ -12,7 +12,7 @@
 
 # Print informational messages only in interactive shells,
 # so they don't end up in the journal when the graphical session sources /etc/profile
-msg() {
+message() {
     case $- in
         *i*) printf '%s\n' "$*" ;;
     esac
@@ -23,7 +23,7 @@ err() {
     printf '%s\n' "$*" >&2
 }
 
-msg ""
+message ""
 
 
 # -----------------------------------------------------
@@ -62,21 +62,22 @@ set_mesa_vk_device() {
 
     ### nvidia_id=$(grep -Eo "10de:[0-9a-f]{4}" <<< "$vk_devices" | head -n1) # Bash equivalent of the operation done below, kept for archival purposes.
     # The "\" in front of grep is to escape the alias. An alternative is to pass the absolute path, e.g. /bin/grep
-    ##nvidia_id=$(echo "$vk_devices" | \grep -Eo "10de:[0-9a-f]{4}" | head -n1)
+    ##amd_id=$(echo "$vk_devices" | \grep -Eo "1002:[0-9a-f]{4}" | head -n1)
     intel_id=$(echo "$vk_devices" | \grep -Eo "8086:[0-9a-f]{4}" | head -n1)
+    ##nvidia_id=$(echo "$vk_devices" | \grep -Eo "10de:[0-9a-f]{4}" | head -n1)
 
     # Set the GPU used for Vulkan
     ## Remove and/or change the order of the vendors according to your system's
     ## configuration, in order to speed up the function's execution.
-    for var in "$intel_id" "$nvidia_id"; do
+    for var in "$amd_id" "$intel_id" "$nvidia_id"; do
         if [ -n "$var" ]; then
             export MESA_VK_DEVICE_SELECT="$var"
-            msg "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
+            message "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
             break
         fi
     done
 
-    unset vk_devices nvidia_id intel_id var
+    unset vk_devices amd_id intel_id nvidia_id var
 }
 set_mesa_vk_device
 
@@ -117,11 +118,11 @@ export ANV_DEBUG=video-decode,video-encode
 export mesa_glthread=true
 
 
-msg ""
+message ""
 
 
 # -----------------------------------------------------
 # Cleanup
 # -----------------------------------------------------
 # The functions defined here should not be available beyond this file's scope.
-unset -f set_mesa_vk_device msg err
+unset -f set_mesa_vk_device message err
