@@ -18,66 +18,18 @@
 
 set -euo pipefail
 
-# Log the whole run to /temp/logs, but only when input and output are a
-# terminal (piped input, e.g. `echo y | ...`, goes straight to the
-# script): `script` re-runs this script inside a pseudo-terminal, so
-# progress bars and prompts keep working and everything is also saved.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
-
-# Resolved once at startup: if a script cd's elsewhere later, a relative $0
-# would point to the wrong folder and the sounds would not be found.
+# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
+# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
+# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
-# shellcheck disable=SC2329  # called by the trap
-on_exit() {
-    local rc=$?
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
-}
-trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-# Common paths for an optical drive across distros/setups: /dev/sr0 is the
-# usual raw SCSI/USB name, the rest are symlinks some systems create.
-detect_device() {
-    local candidate
-    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
-        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
-    done
-    echo "/dev/sr0"
-}
-
-# Identifies the physical drive, so each drive gets its own offset file:
-# udev's ID_SERIAL (vendor_model_serial), or vendor + model from sysfs.
-drive_id() {
-    local id sysdev
-    # `|| true`: with pipefail, a failing udevadm/cat would otherwise end
-    # the script right here, silently, before the fallback or the error.
-    id="$( { udevadm info --query=property --name="$DEVICE" 2>/dev/null || true; } | sed -n 's/^ID_SERIAL=//p')"
-    if [[ -z "$id" ]]; then
-        sysdev="/sys/class/block/$(basename "$(readlink -f "$DEVICE")")/device"
-        id="$( { cat "$sysdev/vendor" "$sysdev/model" 2>/dev/null || true; } | xargs)"
-    fi
-    # Safe file name: anything but letters, digits, '.', '_' and '-' becomes '_'.
-    id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9._-' '_' | tr -s '_')"
-    id="${id#_}"
-    echo "${id%_}"
-}
+# shellcheck source=common.bash
+source "$SCRIPT_DIR/common.bash" || exit 1
 
 DEVICE="${1:-$(detect_device)}"
 
-command -v cyanrip >/dev/null 2>&1 || { echo "Error: 'cyanrip' not found. Install it from the AUR: paru -S cyanrip" >&2; exit 1; }
+command -v cyanrip >/dev/null 2>&1 || { echo "Error: 'cyanrip' not found. Install it from the AUR: yay -S --needed cyanrip" >&2; exit 1; }
 [[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; exit 1; }
+lock_device   # one script per drive at a time (common.bash)
 
 DRIVE_ID="$(drive_id)"
 [[ -n "$DRIVE_ID" ]] || { echo "Error: could not identify the drive behind '$DEVICE' (no udev serial, no vendor/model)." >&2; exit 1; }

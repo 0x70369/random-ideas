@@ -28,34 +28,12 @@
 
 set -euo pipefail
 
-# Log the whole run to /temp/logs, but only when input and output are a
-# terminal (piped input, e.g. `echo y | ...`, goes straight to the
-# script): `script` re-runs this script inside a pseudo-terminal, so
-# progress bars and prompts keep working and everything is also saved.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
-
-# Resolved once at startup: if a script cd's elsewhere later, a relative $0
-# would point to the wrong folder and the sounds would not be found.
+# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
+# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
+# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
-# shellcheck disable=SC2329  # called by the trap
-on_exit() {
-    local rc=$?
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
-}
-trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
-trap 'exit 130' INT
-trap 'exit 143' TERM
+# shellcheck source=common.bash
+source "$SCRIPT_DIR/common.bash" || exit 1
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <disc_dir> [destination_dir]" >&2

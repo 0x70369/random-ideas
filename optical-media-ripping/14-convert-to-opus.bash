@@ -13,6 +13,18 @@
 # when that file finishes, so 32 parallel encoders don't interleave their
 # progress lines into an unreadable mess.
 #
+# Before converting:
+#   - HDCD: CD audio (16-bit FLACs) is checked for HDCD codes, which hide
+#     about 20 bits of dynamic range in the 16-bit stream. Only if an album
+#     has them, you are asked whether to decode them (ffmpeg's hdcd filter,
+#     to 24-bit) before the Opus encode. Decoding restores the extended
+#     range but changes the sound against a plain CD player (peak extension
+#     can expand the top 3 dB into 9 dB), and the FLACs are deleted later,
+#     so the choice is final -- hence the question. Tags and cover are kept.
+# Before deleting each FLAC:
+#   - the Opus is decoded completely and its duration compared with the
+#     FLAC's (at most 0.1 s apart); if either check fails, the FLAC stays.
+#
 # Normalization, the Opus way only (RFC 7845): R128_TRACK_GAIN and
 # R128_ALBUM_GAIN tags, referenced to -23 LUFS, and the header "output
 # gain" at 0 dB. Players that read the tags even out the volume; the others
@@ -35,34 +47,12 @@
 
 set -euo pipefail
 
-# Log the whole run to /temp/logs, but only when input and output are a
-# terminal (piped input, e.g. `echo y | ...`, goes straight to the
-# script): `script` re-runs this script inside a pseudo-terminal, so
-# progress bars and prompts keep working and everything is also saved.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
-
-# Resolved once at startup: if a script cd's elsewhere later, a relative $0
-# would point to the wrong folder and the sounds would not be found.
+# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
+# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
+# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
-# shellcheck disable=SC2329  # called by the trap
-on_exit() {
-    local rc=$?
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
-}
-trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
-trap 'exit 130' INT
-trap 'exit 143' TERM
+# shellcheck source=common.bash
+source "$SCRIPT_DIR/common.bash" || exit 1
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <flac_directory>" >&2
@@ -70,10 +60,10 @@ if [[ $# -lt 1 ]]; then
 fi
 SOURCE="$1"
 
-for cmd in metaflac opusenc ffprobe; do
+for cmd in metaflac opusenc ffmpeg ffprobe; do
     command -v "$cmd" >/dev/null 2>&1 || { echo "Error: '$cmd' not found." >&2; exit 1; }
 done
-command -v rsgain >/dev/null 2>&1 || { echo "Error: 'rsgain' not found. Install it from the AUR: paru -S rsgain" >&2; exit 1; }
+command -v rsgain >/dev/null 2>&1 || { echo "Error: 'rsgain' not found. Install it from the AUR: yay -S --needed rsgain" >&2; exit 1; }
 
 [[ -d "$SOURCE" ]] || { echo "Error: directory '$SOURCE' does not exist." >&2; exit 1; }
 
@@ -94,6 +84,89 @@ while IFS= read -r -d '' f; do
         metaflac "${RG_REMOVE[@]}" "$f"
     fi
 done < <(find "$SOURCE" -type f -iname '*.flac' -print0)
+
+# Album folder of a file's folder: a "Disco N" / "Disc N" / "CD N" folder
+# belongs to the album folder above it.
+album_of() {
+    local dir="$1"
+    if [[ "$(basename "$dir")" =~ ^(Disco|Disc|CD)[[:space:]_-]*[0-9]+$ ]]; then
+        dir="$(dirname "$dir")"
+    fi
+    printf '%s' "$dir"
+}
+
+# --- HDCD -------------------------------------------------------------------
+# Detection, in parallel: only 16-bit FLACs (CD audio) can carry HDCD. The
+# filter decodes the whole file to null and reports "HDCD detected: yes/no".
+if [[ "$total" -gt 0 ]]; then
+    echo "Checking $total FLAC file(s) for HDCD (parallel, $(nproc) cores)..."
+    # shellcheck disable=SC2016  # single quotes on purpose: expanded by the inner bash
+    mapfile -d '' -t HDCD_FILES < <(
+        find "$SOURCE" -type f -iname '*.flac' -print0 |
+            xargs -0 -n 1 -P"$(nproc)" bash -c '
+                [[ "$(metaflac --show-bps "$1" 2>/dev/null)" == 16 ]] || exit 0
+                if ffmpeg -nostdin -hide_banner -nostats -i "$1" -af hdcd -c:a pcm_s32le -f null - 2>&1 |
+                        grep -q "HDCD detected: yes"; then
+                    printf "%s\0" "$1"
+                fi
+            ' _ | sort -z
+    )
+    if [[ "${#HDCD_FILES[@]}" -eq 0 ]]; then
+        echo "No HDCD found."
+    else
+        # One question per album, so all its tracks are treated the same.
+        declare -A HDCD_COUNT=()
+        for f in "${HDCD_FILES[@]}"; do
+            album="$(album_of "$(dirname "$f")")"
+            HDCD_COUNT["$album"]=$(( ${HDCD_COUNT["$album"]:-0} + 1 ))
+        done
+        DECODE=()
+        for album in "${!HDCD_COUNT[@]}"; do
+            echo
+            echo "HDCD found in ${HDCD_COUNT[$album]} track(s) of: $album"
+            echo "  Decoding restores the extended dynamic range the disc was mastered"
+            echo "  with, but sounds different from a plain CD player (peak extension"
+            echo "  can expand the top 3 dB into 9 dB). The FLACs are deleted after the"
+            echo "  conversion, so this choice is final."
+            while :; do
+                read -rp "  Decode HDCD for this album? [y/n] " reply ||
+                    { echo "Error: no answer (no terminal?) -- nothing was converted." >&2; exit 1; }
+                [[ "$reply" =~ ^[YyNn]$ ]] && break
+            done
+            if [[ "$reply" =~ ^[Yy]$ ]]; then
+                for f in "${HDCD_FILES[@]}"; do
+                    [[ "$(album_of "$(dirname "$f")")" == "$album" ]] && DECODE+=("$f")
+                done
+            fi
+        done
+        if [[ "${#DECODE[@]}" -gt 0 ]]; then
+            echo "Decoding HDCD in ${#DECODE[@]} file(s) to 24-bit FLAC (tags and cover kept)..."
+            # Each file is decoded to a temporary FLAC in /temp and then moved
+            # over the original, which no longer has HDCD codes afterwards --
+            # so a rerun does not ask again. -map 0 -c:v copy keeps the cover.
+            # shellcheck disable=SC2016  # single quotes on purpose: expanded by the inner bash
+            if ! printf '%s\0' "${DECODE[@]}" |
+                xargs -0 -n 1 -P"$(nproc)" bash -c '
+                    f="$1"
+                    tmp="$(mktemp -p /temp --suffix=.flac)"
+                    trap '\''rm -f -- "$tmp"; exit 130'\'' INT TERM
+                    if ffmpeg -nostdin -v error -y -i "$f" -map 0 -c:v copy -af hdcd \
+                            -c:a flac -compression_level 8 -sample_fmt s32 -bits_per_raw_sample 24 \
+                            -fflags +bitexact -flags:a +bitexact "$tmp" &&
+                            mv -f -- "$tmp" "$f"; then
+                        echo "HDCD decoded: $f"
+                    else
+                        rm -f -- "$tmp"
+                        echo "Failed to decode HDCD: $f" >&2
+                        exit 1
+                    fi
+                ' _; then
+                echo "Error: HDCD decoding failed for some file(s) -- nothing was converted." >&2
+                exit 1
+            fi
+        fi
+    fi
+fi
 
 # --- FLAC -> Opus -----------------------------------------------------------
 if [[ "$total" -eq 0 ]]; then
@@ -119,8 +192,27 @@ else
             fi
             # Ctrl+C / kill mid-encode: no half-written Opus or stray log left.
             trap '\''rm -f -- "$out" "$logfile"; exit 130'\'' INT TERM
-            if opusenc --bitrate "$bitrate" "$f" "$out" >"$logfile" 2>&1; then
-                # The Opus is complete: from here on, never delete it.
+            # Deleting the FLAC cannot be undone: before that, the Opus must
+            # decode completely, and last as long as the FLAC (<= 0.1 s apart).
+            verify() {
+                local samples rate flac_s opus_s errors
+                errors="$(ffmpeg -nostdin -v error -i "$out" -f null - 2>&1)" || { echo "decode failed: $errors"; return 1; }
+                [[ -z "$errors" ]] || { echo "decode errors: $errors"; return 1; }
+                samples="$(metaflac --show-total-samples "$f")"
+                rate="$(metaflac --show-sample-rate "$f")"
+                opus_s="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out")"
+                if [[ "$samples" =~ ^[1-9][0-9]*$ && "$rate" =~ ^[1-9][0-9]*$ ]]; then
+                    flac_s="$(awk -v n="$samples" -v r="$rate" "BEGIN { printf \"%.3f\", n / r }")"
+                    awk -v a="$flac_s" -v b="$opus_s" "BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 0.1) }" ||
+                        { echo "duration mismatch: FLAC ${flac_s}s, Opus ${opus_s}s"; return 1; }
+                    echo "verified: decodes cleanly, ${opus_s}s (FLAC ${flac_s}s)"
+                else
+                    echo "FLAC length unknown: only the decode was checked"
+                fi
+            }
+            if opusenc --bitrate "$bitrate" "$f" "$out" >"$logfile" 2>&1 &&
+                    verify >>"$logfile" 2>&1; then
+                # The Opus is complete and checked: from here on, never delete it.
                 trap - INT TERM
                 echo "=== OK: $f (channels=$channels bitrate=$bitrate) ==="
                 cat "$logfile"
@@ -142,16 +234,12 @@ else
 fi
 
 # --- Normalization tags (RFC 7845) -----------------------------------------
-# Every album in the tree (the skip check below makes this cheap). One
-# album per folder holding .opus files; a "Disco N" / "Disc N" / "CD N"
-# folder belongs to the album folder above it.
+# Every album in the tree (the skip check below makes this cheap), grouped
+# with album_of.
 mapfile -d '' -t ALBUMS < <(
     find "$SOURCE" -type f -iname '*.opus' -printf '%h\0' |
         while IFS= read -r -d '' dir; do
-            if [[ "$(basename "$dir")" =~ ^(Disco|Disc|CD)[[:space:]_-]*[0-9]+$ ]]; then
-                dir="$(dirname "$dir")"
-            fi
-            printf '%s\0' "$dir"
+            printf '%s\0' "$(album_of "$dir")"
         done | sort -zu
 )
 echo "Checking R128 normalization tags of ${#ALBUMS[@]} album(s) (parallel, $(nproc) cores)..."

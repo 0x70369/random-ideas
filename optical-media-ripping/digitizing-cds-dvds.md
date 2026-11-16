@@ -25,7 +25,7 @@ Each step exists as an independent Bash script (Unix philosophy: one script per 
 | `10a-install-dependencies.bash` | Check packages (`pacman -T`), install the missing ones | Confirms before installing; AUR packages are only reported |
 | `10b-find-drive-offset.bash [device]` | Find and save the drive's read offset (once per drive) | You type the offset cyanrip found |
 | `11-identify-media.bash [device]` | Identify the disc | None. Prints one token to stdout (`CD-DA`, `DVD-VIDEO`, `DVD-AUDIO`, `VCD`, `UNKNOWN`) and the next step to stderr |
-| `12a-rip-cd.bash [device] [dest]` | Audio CD → FLAC (cyanrip), extraction only | None |
+| `12a-rip-cd.bash [device] [dest]` | Audio CD → FLAC (cyanrip), extraction only, with a clean/not-clean verdict | None |
 | `12b-rip-dvd-video.bash [device] [dest]` | Live-show DVD → FLAC per chapter | You pick the title(s) and the audio stream |
 | `12c-rip-dvd-audio.bash [device] [dest]` | DVD-Audio → FLAC | Confirms after showing the track list |
 | *(Picard)* | Tags and file tree | Graphical tool, by design |
@@ -33,7 +33,7 @@ Each step exists as an independent Bash script (Unix philosophy: one script per 
 | `15a-backup-video-disc.bash [device] [dest]` | Bit-exact backup of a DVD-Video or VCD/SVCD | Asks the folder name |
 | `15b-compress-video-disc.bash <disc_dir> [dest]` | DVD backup → MKV (x265) | You pick the title(s) and track counts, and name each file |
 
-Common behavior:
+Common behavior (the shared parts live in `common.bash`, next to the scripts; every script sources it, so a fix there applies to all — keep it with the scripts and the two `.oga` sounds):
 - With no device argument, the scripts try `/dev/sr0`, `/dev/sr1`, `/dev/cdrom`, `/dev/dvd`, `/dev/dvdrw`, `/dev/cdrw`, in that order. With two drives connected, pass the device explicitly.
 - Verbose flags are used wherever the tool offers one (`mkdir -v`, `mount -v`, `dvdbackup -v`, `ffmpeg -loglevel verbose`, ...).
 - On exit, `outcome-success.oga` plays on success and `dialog-error.oga` on failure. Both files must sit next to the scripts.
@@ -42,7 +42,8 @@ Common behavior:
 - Temporary files and mount points are created inside `/temp`.
 - **Logs:** when run from a terminal (both input and output; with piped input, e.g. `echo y | ...`, the script runs directly), each script re-runs itself under `script` (util-linux), which records everything shown — including prompts and your answers — to `/temp/logs/<script>-<date>.log`. Progress bars keep working because the script still runs in a (pseudo-)terminal. When the output is captured instead (`type=$(./11-identify-media.bash)`), nothing is logged, so the captured token stays clean.
 - **Free space:** `/temp` is RAM. The DVD scripts compare the disc size with the free space first and stop before copying if it would not fit (`12b`, `15a`: disc + 10%; `12c`: 3× the disc, because decoded MLP can be about twice the disc size).
-- **Eject:** after a successful rip, the disc is ejected (`eject -v`) — a visual "next disc" signal. On failure it stays in, so you can retry.
+- **One script per drive:** the scripts that read the drive (`10b`, `11`, `12a`, `12b`, `12c`, `15a`) take an exclusive `flock` on `/temp/locks/<device>.lock` and stop with an error if another one is already using that drive (e.g. `11` while `12a` rips). The lock is released when the script exits.
+- **Eject:** after a successful rip, the disc is ejected (`eject -v`) — a visual "next disc" signal. On failure it stays in, so you can retry. Exception: `12a` ejects once cyanrip has finished, whatever its verdict — a disc that ripped badly has to come out to be cleaned anyway.
 
 Chaining identification and ripping in your shell:
 ```bash
@@ -59,20 +60,21 @@ esac
 
 ## 0. Required packages (install once)
 
-`10a-install-dependencies.bash` checks each package below with `pacman -T` (deptest) and installs only the missing official ones with `pacman -S --needed`; missing AUR packages are listed with the `paru` command to install them. `-T` is used instead of `-Q` because it accepts any installed package that *provides* the name: with `handbrake-cli-git` or `cyanrip-git` installed, `handbrake-cli`/`cyanrip` count as present instead of being flagged and replaced.
+`10a-install-dependencies.bash` checks each package below with `pacman -T` (deptest) and installs only the missing official ones with `pacman -S --needed`, in two commands: the tools, then — with `--asdeps` — the optional dependencies of another package (`libdvdcss` of `libdvdread`, `chromaprint` of `picard`). The 32-bit versions are included where they exist: `lib32-flac` from `[multilib]` (skipped with a note when `[multilib]` is not enabled), `lib32-libcdio` and `lib32-libdvdcss` from the AUR; no script runs 32-bit code. `lib32-ffmpeg` (a large, often-failing AUR build) and `lib32-chromaprint` (abandoned, fails to build) are left out. Missing AUR packages are listed with the `yay` commands to install them. `-T` is used instead of `-Q` because it accepts any installed package that *provides* the name: with `handbrake-cli-git` or `cyanrip-git` installed, `handbrake-cli`/`cyanrip` count as present instead of being flagged and replaced.
 
 By hand:
 ```bash
-sudo pacman -S --needed libcdio flac ffmpeg libdvdcss dvdbackup \
-                        lsdvd ogmtools vcdimager \
-                        picard chromaprint opus-tools handbrake-cli
+sudo pacman -S --needed libcdio flac lib32-flac ffmpeg dvdbackup \
+                        lsdvd ogmtools vcdimager picard opus-tools handbrake-cli &&
+sudo pacman -S --needed --asdeps libdvdcss chromaprint
 ```
 
-From the AUR (e.g. with `paru`):
+From the AUR, with `yay`:
 ```bash
-paru -S cyanrip         # required: audio CD ripping
-paru -S libdvd-audio    # only for DVD-Audio discs
-paru -S rsgain          # required: R128 normalization tags in step 4
+yay -S --needed cyanrip         # required: audio CD ripping
+yay -S --needed rsgain          # required: R128 normalization tags in step 4
+yay -S --needed libdvd-audio    # only for DVD-Audio discs
+yay -S --needed lib32-libcdio && yay -S --needed --asdeps lib32-libdvdcss
 ```
 If `libdvd-audio` fails (its MLP support is weak and the project has been inactive since 2017), the proprietary, paid alternative is `dvdae-bin` (AUR).
 
@@ -164,7 +166,16 @@ Optional arguments, added by `12a` when they apply:
 - `-l 1,2,3` — only these tracks (enhanced CD: the audio tracks, read from `cd-info`).
 - `-p 1=track` — track 1 starts 2 s or more into the disc (its LSN in `cd-info` is ≥ 150): there is hidden audio before it.
 
-Without metadata, cyanrip creates `/temp/rip/Unknown disc (XXXX) [FLAC]/` (XXXX = start of the barcode, MCN or disc ID) with `<track> - Unknown track.flac` files (maximum compression), a CUE sheet and the **rip log**. Picard renames everything on save. At the end, `12a` prints the disc ID (from the log) and its MusicBrainz page, `https://musicbrainz.org/cdtoc/<disc ID>`. Read the log after each disc: it says per track whether the rip matched AccurateRip. A track that is not in the database is not an error — the log then just cannot confirm it.
+Without metadata, cyanrip creates `/temp/rip/Unknown disc (XXXX) [FLAC]/` (XXXX = start of the barcode, MCN or disc ID) with `<track> - Unknown track.flac` files (maximum compression), a CUE sheet and the **rip log**. Picard renames everything on save. At the end, `12a` prints the disc ID (from the log) and its MusicBrainz page, `https://musicbrainz.org/cdtoc/<disc ID>`, and then reads the log's summary lines (`AccurateRip: …`, `Tracks ripped accurately: X/Y`, `Ripping errors: N`) to give a verdict:
+
+| Log says | Verdict | Sound |
+|---|---|---|
+| Disc in AccurateRip, every track matches, 0 read errors | Clean rip, verified | Success |
+| Disc in AccurateRip, some tracks don't match | Not clean: clean the disc and rip again (or, less often, a pressing missing from the database) | Error |
+| Any read errors (unreadable audio replaced by silence) | Not clean | Error |
+| Disc not in AccurateRip (CD-Rs, rare pressings), 0 read errors | No read errors, but not verified | Success |
+
+The files are kept in every case. The HTOA track 0 is never in AccurateRip, so it is not counted. The per-track details stay in the log.
 
 **About gaps:** cyanrip handles pregaps like EAC: each track's pregap (the silence between tracks) is attached to the **end of the previous track**. Cutting it is destructive: it removes reverb tails and applause on live or gapless discs. If you still want to remove only the trailing silence:
 ```bash
@@ -277,7 +288,7 @@ Click **Make It So**.
 
 1. **File ▸ Add Folder** → `/temp/rip` (or `/temp/rip/title-N`) — one album at a time.
 2. Identify the release — the first method that applies:
-   - **CDs:** put the disc back in the drive and use **Tools ▸ Lookup CD**. Picard computes the disc ID from the disc's table of contents and lists the releases with exactly that track layout; pick one and drag the files onto it. If none matches, the same dialog lets you submit the disc ID to MusicBrainz, attaching it to the right release. Alternatives: Picard 3.0+ can instead read the disc ID from the cyanrip rip log: Tools ▸ Lookup CD ▸ from a log file. Picard 2.x does not read cyanrip logs. Without the disc: open the `cdtoc` link `12a` printed, copy the URL of the right release and paste it into Picard's search box — Picard loads that release.
+   - **CDs:** use **Tools ▸ Lookup CD ▸ From CD ripper log file…** and pick the cyanrip `.log` in the album folder — Picard 3.0+ (in the Arch repos since 3.0.4) reads the disc ID from it, so the disc does not need to be in the drive. Picard lists the releases with exactly that track layout; pick one and drag the files onto it. If none matches, the same dialog lets you submit the disc ID to MusicBrainz, attaching it to the right release. With the disc in the drive, plain **Tools ▸ Lookup CD** does the same. Or open the `cdtoc` link `12a` printed, copy the URL of the right release and paste it into Picard's search box.
    - **DVD shows and anything else:** click **Cluster**, then **Scan** (AcoustID fingerprint), which works well for commercial studio releases. If nothing is found (common for live shows and bootlegs), search by artist/title in the right pane and drag the cluster onto the right release.
 3. Compare the release's track list (right) with the files (left) — this is where you check that the DVD chapter order matches the official track numbering.
 4. Check the cover in the **Cover Art** tab.
@@ -320,7 +331,21 @@ find /temp/final -type f -iname '*.flac' -print0 |
 - No `--discard-comments`/`--discard-pictures`: by default `opusenc` copies the Vorbis comments and the embedded cover from the FLAC — exactly what Picard wrote.
 - **ReplayGain:** `opusenc` converts `REPLAYGAIN_*` tags into the Opus header *output gain*, which every player applies, always (album gain −10 dB → header gain −15 dB, normalized to −23 LUFS). The files would then play at another volume than the CD everywhere. `12a` does not write these tags (`-K`); if any FLAC still has them (e.g. from a Picard plugin), `14` removes them with `metaflac --remove-tag` before converting. Normalization is done afterwards, the Opus way (4b). Check an existing file with `opusinfo file.opus | grep 'Playback gain'`.
 - The channel count is validated: an empty or non-numeric value would become an invalid `--bitrate`.
-- Ctrl+C during an encode removes the half-written `.opus` and its log; the FLAC stays (tested). The cleanup is disarmed once the Opus is complete, before the FLAC is deleted.
+- **Checked before deleting:** after each encode, the Opus is decoded completely (`ffmpeg -v error -i file.opus -f null -`, which must print nothing) and its duration (`ffprobe`) is compared with the FLAC's (`metaflac` total samples ÷ sample rate); they may differ by at most 0.1 s. If either check fails, the Opus is removed and the FLAC stays (tested with a deliberately truncated Opus).
+- Ctrl+C during an encode removes the half-written `.opus` and its log; the FLAC stays (tested). The cleanup is disarmed once the Opus is complete and checked, before the FLAC is deleted.
+
+### 4a. HDCD (asked only when a disc has it)
+
+HDCD hides about 20 bits of dynamic range inside a 16-bit CD stream; some CDs of the 1990s carry it. Before converting, `14` checks every 16-bit FLAC with ffmpeg's `hdcd` filter (in parallel; it decodes the file and reports `HDCD detected: yes/no`):
+```bash
+ffmpeg -i track.flac -af hdcd -c:a pcm_s32le -f null - 2>&1 | grep 'HDCD detected'
+```
+Only when an album has HDCD tracks does `14` ask, once per album, whether to decode them. Decoding restores the extended range the disc was mastered with, but sounds different from a plain CD player (peak extension can expand the top 3 dB into 9 dB) — and the FLACs are deleted after the conversion, so the choice is final. If yes, each HDCD track is decoded to a 24-bit FLAC that replaces the original, keeping tags and cover:
+```bash
+ffmpeg -i track.flac -map 0 -c:v copy -af hdcd -c:a flac -compression_level 8 \
+       -sample_fmt s32 -bits_per_raw_sample 24 -fflags +bitexact -flags:a +bitexact tmp.flac
+```
+The decoded file no longer has HDCD codes, so a rerun does not ask again. Without a terminal to answer on, `14` stops before converting anything. Tested with the HDCD samples of libhdcd's test suite.
 - One log file per process (`mktemp`): a fixed file name shared by parallel processes gets overwritten by the others. Each file's output is printed in one block when it finishes, so parallel encoders don't interleave their progress lines.
 - The FLAC is deleted only if the conversion succeeded. If any FLAC is left at the end, the script exits with an error.
 - `-P"$(nproc)"`: one process per core — this is where the CPU, not the drive, is the bottleneck.
@@ -434,6 +459,13 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 - cdparanoia man page: https://manpages.org/cdparanoia
 - cdparanoia source (aborts on spans with data tracks): https://stuff.mit.edu/people/nocturne/athena/sipbcopy/project/cdparanoia-netbsd/cdparanoia/main.c
 - MusicBrainz Picard — Lookup CD: https://picard-docs.musicbrainz.org/en/usage/retrieve_lookup_cd.html
+- Picard 3.0 — Lookup CD or Ripper Log ("From CD ripper log file…"): https://picard-docs.musicbrainz.org/en/v3.0/usage/retrieve_lookup_cd.html
+- cyanrip log format (AccurateRip summary, ripping errors): https://github.com/cyanreg/cyanrip/blob/v0.9.3.1/src/cyanrip_log.c
+- HDCD (Hydrogenaudio Wiki): https://wiki.hydrogenaud.io/index.php?title=HDCD
+- FFmpeg hdcd filter: https://ayosec.github.io/ffmpeg-filters-docs/7.0/Filters/Audio/hdcd.html
+- libhdcd (test samples): https://github.com/bp0/libhdcd
+- flock(1): https://www.mankier.com/1/flock
+- BashFAQ/045 (locking): https://mywiki.wooledge.org/BashFAQ/045
 - Picard source (cyanrip log support, PICARD-3346, 3.0): https://github.com/metabrainz/picard/blob/master/picard/disc/cyanriplog.py
 - cyanrip source (defaults without metadata: "Unknown disc", "Unknown track"): https://github.com/cyanreg/cyanrip/blob/master/src/cyanrip_main.c
 - opus-tools source (ReplayGain → header gain): https://github.com/xiph/opus-tools/blob/master/src/flac.c

@@ -20,50 +20,21 @@
 
 set -uo pipefail
 
-# Log the whole run to /temp/logs, but only when the output goes to a
-# terminal. When the token is captured (type=$(...)), stdout is not a
-# terminal and nothing changes -- logging would mix stderr into the token.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
-
-# Resolved once at startup: if a script cd's elsewhere later, a relative $0
-# would point to the wrong folder and the sounds would not be found.
+# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
+# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
+# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-# shellcheck disable=SC2329  # used inside the trap handler
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-# shellcheck disable=SC2329
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
+# shellcheck source=common.bash
+source "$SCRIPT_DIR/common.bash" || exit 1
 
 MOUNTPOINT=""
-# shellcheck disable=SC2329  # called by the trap
-on_exit() {
-    local rc=$?
+# Runs on every exit, before the sound (see common.bash).
+# shellcheck disable=SC2329
+cleanup() {
     if [[ -n "$MOUNTPOINT" ]]; then
         sudo umount -v "$MOUNTPOINT" >&2
         rmdir -v "$MOUNTPOINT" >&2
     fi
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
-}
-trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-# Common paths for an optical drive across distros/setups: /dev/sr0 is the
-# usual raw SCSI/USB name, the rest are symlinks some systems create.
-detect_device() {
-    local candidate
-    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
-        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
-    done
-    echo "/dev/sr0"
 }
 
 DEVICE="${1:-$(detect_device)}"
@@ -87,6 +58,7 @@ unknown() {
 }
 
 [[ -b "$DEVICE" ]] || { log "Error: '$DEVICE' is not a block device."; exit 1; }
+lock_device   # one script per drive at a time (common.bash)
 
 # --- What the TOC says ---------------------------------------------------
 # cd-info prints the disc mode plus one row per track, e.g.

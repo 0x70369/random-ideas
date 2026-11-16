@@ -11,8 +11,15 @@
 #   - detects pre-emphasis (TOC and subcode) and applies de-emphasis
 #     automatically -- otherwise mid-80s/early-90s CDs come out harsh;
 #   - writes a rip log with the paranoia error counts, the AccurateRip
-#     results and the disc ID -- read it to know whether the disc ripped
-#     cleanly.
+#     results and the disc ID.
+#
+# At the end, this script reads that log and gives the verdict:
+#   - every track matches AccurateRip, no read errors: success sound;
+#   - read errors, or tracks that don't match the database: error sound
+#     (clean the disc and rip again -- the files are kept);
+#   - disc not in AccurateRip (CD-Rs, rare pressings): no verification is
+#     possible, so it only reports that (success sound if no read errors).
+# The HTOA track 0 is never in AccurateRip, so it is not counted.
 #
 # Disabled on purpose: MusicBrainz lookup (-N), cover art download (-U) and
 # ReplayGain tags (-K). Without metadata, cyanrip names the folder
@@ -27,61 +34,12 @@
 
 set -euo pipefail
 
-# Log the whole run to /temp/logs, but only when input and output are a
-# terminal (piped input, e.g. `echo y | ...`, goes straight to the
-# script): `script` re-runs this script inside a pseudo-terminal, so
-# progress bars and prompts keep working and everything is also saved.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
-
-# Resolved once at startup: this script cd's into the destination later,
-# and a relative $0 would then point to the wrong folder.
+# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
+# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
+# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
-# shellcheck disable=SC2329  # called by the trap
-on_exit() {
-    local rc=$?
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
-}
-trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
-trap 'exit 130' INT
-trap 'exit 143' TERM
-
-# Common paths for an optical drive across distros/setups: /dev/sr0 is the
-# usual raw SCSI/USB name, the rest are symlinks some systems create.
-detect_device() {
-    local candidate
-    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
-        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
-    done
-    echo "/dev/sr0"
-}
-
-# Identifies the physical drive, so each drive gets its own offset file:
-# udev's ID_SERIAL (vendor_model_serial), or vendor + model from sysfs.
-drive_id() {
-    local id sysdev
-    # `|| true`: with pipefail, a failing udevadm/cat would otherwise end
-    # the script right here, silently, before the fallback or the error.
-    id="$( { udevadm info --query=property --name="$DEVICE" 2>/dev/null || true; } | sed -n 's/^ID_SERIAL=//p')"
-    if [[ -z "$id" ]]; then
-        sysdev="/sys/class/block/$(basename "$(readlink -f "$DEVICE")")/device"
-        id="$( { cat "$sysdev/vendor" "$sysdev/model" 2>/dev/null || true; } | xargs)"
-    fi
-    # Safe file name: anything but letters, digits, '.', '_' and '-' becomes '_'.
-    id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9._-' '_' | tr -s '_')"
-    id="${id#_}"
-    echo "${id%_}"
-}
+# shellcheck source=common.bash
+source "$SCRIPT_DIR/common.bash" || exit 1
 
 DEVICE="${1:-$(detect_device)}"
 DEST="${2:-/temp/rip}"
@@ -91,6 +49,7 @@ for cmd in cd-info cyanrip eject; do
 done
 
 [[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; exit 1; }
+lock_device   # one script per drive at a time (common.bash)
 
 # Never mix two discs in the same folder.
 if [[ -n "$(find "$DEST" \( -iname '*.wav' -o -iname '*.flac' \) -print -quit 2>/dev/null)" ]]; then
@@ -142,14 +101,79 @@ mkdir -pv "$DEST"
 cd "$DEST"
 
 echo "Ripping into $DEST (offset $OFFSET samples)..."
-cyanrip "${CYANRIP_ARGS[@]}"
+# Not fatal here: the log is read below either way.
+CYANRIP_RC=0
+cyanrip "${CYANRIP_ARGS[@]}" || CYANRIP_RC=$?
 
 echo "Done: $(find . -iname '*.flac' | wc -l) track(s) in $DEST"
-echo "Check the rip log next to the files: it shows the AccurateRip result per track."
-# The disc ID cyanrip computed from the TOC (no lookup was made): handy to
-# find the exact release on MusicBrainz without the disc in the drive.
-DISC_ID="$(find . -iname '*.log' -exec sed -n 's/^[[:space:]]*DiscID:[[:space:]]*//p' {} + | head -n1)"
+eject -v "$DEVICE"
+
+# --- Verdict from the rip log ---------------------------------------------
+LOG_FILE="$(find . -iname '*.log' -print -quit)"
+if [[ -z "$LOG_FILE" ]]; then
+    echo "Error: no rip log found (cyanrip exit status $CYANRIP_RC)." >&2
+    exit 1
+fi
+echo "Rip log: $DEST/${LOG_FILE#./} (Picard: Tools > Lookup CD > From CD ripper log file)"
+
+# The disc ID cyanrip computed from the TOC (no lookup was made). Picard 3
+# reads it from the log itself: Tools > Lookup CD > From CD ripper log file.
+DISC_ID="$(sed -n 's/^[[:space:]]*DiscID:[[:space:]]*//p' "$LOG_FILE" | head -n1)"
 if [[ -n "$DISC_ID" ]]; then
     echo "Disc ID: $DISC_ID -- releases with this exact disc: https://musicbrainz.org/cdtoc/$DISC_ID"
 fi
-eject -v "$DEVICE"
+
+# Lines written by cyanrip at the end of the log:
+#   "AccurateRip:    found|not found|mismatch|error|disabled"
+#   "Tracks ripped accurately: X/Y"   (only when the disc was found)
+#   "Ripping errors: N"               (frames that could not be read)
+AR_STATUS="$(sed -n 's/^AccurateRip:[[:space:]]*//p' "$LOG_FILE" | tail -n1)"
+ACCURATE="$(sed -n 's/^Tracks ripped accurately: \([0-9]\+\)\/[0-9]\+.*/\1/p' "$LOG_FILE" | tail -n1)"
+PARTIAL="$(sed -n 's/^Tracks ripped partially accurately: \([0-9]\+\)\/[0-9]\+.*/\1/p' "$LOG_FILE" | tail -n1)"
+RIP_ERRORS="$(sed -n 's/^Ripping errors: \([0-9]\+\).*/\1/p' "$LOG_FILE" | tail -n1)"
+EXPECTED="${#AUDIO_TRACKS[@]}"   # the disc's audio tracks, without a track 0
+
+echo
+echo "=== Verdict ==="
+FAILED=false
+if [[ "$CYANRIP_RC" -ne 0 ]]; then
+    echo "cyanrip exited with status $CYANRIP_RC."
+    FAILED=true
+fi
+if [[ -z "$RIP_ERRORS" ]]; then
+    echo "Could not read the error count from the log -- check it yourself."
+    FAILED=true
+elif [[ "$RIP_ERRORS" -gt 0 ]]; then
+    echo "Read errors: $RIP_ERRORS (unreadable audio was replaced by silence)."
+    FAILED=true
+else
+    echo "Read errors: none."
+fi
+case "$AR_STATUS" in
+    found)
+        if [[ "${ACCURATE:-0}" -ge "$EXPECTED" ]]; then
+            echo "AccurateRip: all $EXPECTED track(s) match the database."
+        else
+            echo "AccurateRip: only ${ACCURATE:-0} of $EXPECTED track(s) match the database${PARTIAL:+ ($PARTIAL more match partially)}."
+            echo "  The others differ from every rip in the database: a damaged or dirty disc"
+            echo "  (clean it and rip again), or, less often, a pressing not in the database."
+            FAILED=true
+        fi
+        ;;
+    "not found"|mismatch)
+        echo "AccurateRip: this pressing is not in the database (normal for CD-Rs and rare"
+        echo "  releases), so the rip cannot be verified -- rely on the read errors above."
+        ;;
+    *)
+        echo "AccurateRip: ${AR_STATUS:-no result in the log} -- the rip was not verified."
+        ;;
+esac
+if $FAILED; then
+    echo "Result: NOT a clean rip. The files are kept in $DEST; see the log for the per-track details." >&2
+    exit 1
+fi
+if [[ "$AR_STATUS" == found ]]; then
+    echo "Result: clean rip, verified by AccurateRip."
+else
+    echo "Result: no read errors, but not verified by AccurateRip."
+fi
