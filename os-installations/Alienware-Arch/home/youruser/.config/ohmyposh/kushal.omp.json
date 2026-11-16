@@ -159,7 +159,7 @@
         {
           "foreground": "#F2D3B6",
           "options": {
-            "time_format": "<#D6DEEB>\ue641 15:04:05</> <#79DFE1>|</> \uf073 2 Jan, Monday"
+            "time_format": "<#D6DEEB>\ue641 15:04:05</> <#79DFE1>|</> \uf073 2006-01-02, Monday"
           },
           "style": "plain",
           "template": "{{ .CurrentDate | date .Format }} <#79DFE1>|</>",
