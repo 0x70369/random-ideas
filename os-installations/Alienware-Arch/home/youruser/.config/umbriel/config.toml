@@ -1,0 +1,894 @@
+# Umbriel configuration
+#
+# Copy this file to ~/.config/umbriel/config.toml. Most changes apply when the
+# file is saved. Validate edits with `umbriel config validate`.
+#
+# Complete reference: https://docs.noctalia.dev/umbriel/
+#
+# Prefer standardized interfaces (XDG/freedesktop, MPRIS, systemd, Wayland
+# protocols, udev/hwdb) over compositor-specific or custom glue when practical.
+
+# ==============================================================================
+# Animations
+#
+# Umbriel approximation of the current ML4W Hyprland default animation profile.
+# The two compositors expose different animation primitives, so this intentionally
+# reproduces the curves and overall feel rather than pretending to be 1:1.
+# Umbriel: https://docs.noctalia.dev/umbriel/animation/
+# ML4W: https://github.com/mylinuxforwork/dotfiles/blob/main/dotfiles/.config/hypr/conf/animations/default.lua
+
+[animation]
+enabled = true
+duration_ms = 200
+curve = "md3_decel"
+
+[animation.beziers]
+linear = [0.0, 0.0, 1.0, 1.0]
+md3_accel = [0.3, 0.0, 0.8, 0.15]
+md3_decel = [0.05, 0.7, 0.1, 1.0]
+md3_standard = [0.2, 0.0, 0.0, 1.0]
+menu_accel = [0.38, 0.04, 1.0, 0.07]
+menu_decel = [0.1, 1.0, 0.0, 1.0]
+overshot = [0.05, 0.9, 0.1, 1.1]
+
+[animation.border]
+enabled = true
+duration_ms = 100
+curve = "linear"
+
+[animation.dim_unfocused]
+enabled = false
+duration_ms = 200
+curve = "md3_decel"
+dim = 0.0
+
+[animation.layers]
+enabled = true
+duration_ms = 200
+curve = "menu_decel"
+
+[animation.overview]
+enabled = true
+duration_ms = 250
+curve = "md3_decel"
+workspace_curve = "menu_decel"
+
+[animation.scratchpad]
+enabled = true
+duration_ms = 200
+curve = "md3_decel"
+blur = false
+dim = 0.8
+fullscreen = false
+maximize = false
+scale = 0.85
+
+[animation.windows_drag]
+physics = true
+
+[animation.windows_in]
+enabled = true
+duration_ms = 200
+curve = "md3_decel"
+style = "popin"
+scale = 0.60
+
+[animation.windows_move]
+enabled = true
+duration_ms = 200
+curve = "md3_decel"
+
+[animation.windows_out]
+enabled = true
+duration_ms = 160
+curve = "md3_accel"
+style = "popin"
+scale = 0.60
+
+[animation.workspaces]
+enabled = true
+duration_ms = 300
+curve = "menu_decel"
+style = "slide"
+
+# ==============================================================================
+# Appearance
+# https://docs.noctalia.dev/umbriel/appearance/
+#
+# Dracula Classic palette follows the official Dracula specification:
+# https://draculatheme.com/spec
+#
+# Geometry follows the ML4W Hyprland defaults: 3 px border, 10 px rounding,
+# 10 px gaps, strong blur, a wide soft shadow without offset and slightly
+# translucent unfocused windows (see the opacity window rules). ML4W takes its
+# colors from the wallpaper; here the Dracula palette stays.
+
+[appearance]
+border_width = 3
+corner_radius = 10
+drag_opacity = 0.75
+opaque_fullscreen = true
+outer_border_width = 0
+prefer_no_csd = true
+
+[appearance.blur]
+brightness = 0.9
+contrast = 0.9
+enabled = true
+noise = 0.02
+optimized = true
+passes = 4
+radius = 3
+saturation = 1.1
+
+[appearance.shadow]
+enabled = true
+offset_x = 0
+offset_y = 0
+softness = 30
+
+[appearance.tab_bar]
+corner_radius = -1
+font = "Hack Nerd Font 10"
+height = 32
+hide_when_single = false
+max_tabs = 6
+overflow = "scroll"
+padding = 8
+position = "top"
+style = "titles"
+tab_gap = 2
+title_align = "center"
+title_format = "{title}"
+visible = true
+
+[colors]
+accent_primary = "#BD93F9FF"
+accent_secondary = "#8BE9FDFF"
+backdrop = "#282A36FF"
+background = "#282A36FF"
+error = "#FF5555FF"
+insert_hint = "#50FA7B80"
+shadow = "#00000066"
+text_muted = "#6272A4FF"
+text_primary = "#F8F8F2FF"
+warning = "#FFB86CFF"
+
+[colors.border]
+focused = "#BD93F9FF"
+outer = "#21222CFF"
+unfocused = "#44475AFF"
+
+[colors.overview]
+background_tint = "#282A36B0"
+badge = "#FF79C6FF"
+workspace_background = "#44475A66"
+
+[colors.tab_bar]
+active = "#BD93F9FF"
+active_text = "#282A36FF"
+active_unfocused = "#44475AFF"
+active_unfocused_text = "#F8F8F2FF"
+background = "#21222CFF"
+text = "#6272A4FF"
+urgent = "#FF5555FF"
+urgent_text = "#F8F8F2FF"
+
+# ==============================================================================
+# DRM devices
+#
+# Intentionally left disabled. Umbriel says to omit [drm] for automatic GPU
+# discovery, and merely declaring [drm] changes startup-failure semantics.
+# Enable only if a GPU really must be excluded (for example a VFIO guest GPU).
+# https://docs.noctalia.dev/umbriel/configuration/#drm-devices
+#
+# [drm]
+# ignored_devices = []
+# ignored_pci_addresses = []
+
+# ==============================================================================
+# Effects
+# https://docs.noctalia.dev/umbriel/effects/
+#
+# Keep all shader effects explicitly unselected. Besides keeping the session
+# minimal, screen/cursor effects can disable direct scanout.
+
+[effects]
+border = ""
+cursor = ""
+in_capture = false
+max_fps = 0
+screen = ""
+window = ""
+
+# Bundled presets can be included under the existing [include] table, then
+# selected above. Example:
+# files = ["/usr/share/umbriel/effects/border/pulse/effect.toml"]
+
+# ==============================================================================
+# Environment
+# https://docs.noctalia.dev/umbriel/configuration/#environment
+#
+# No toolkit forcing by default. Let Wayland/XDG capability detection work and
+# add an override only for an application that demonstrably needs it.
+[environment]
+# ELECTRON_OZONE_PLATFORM_HINT = "auto"
+# SDL_VIDEODRIVER = "wayland"
+
+# ==============================================================================
+# Events
+# https://docs.noctalia.dev/umbriel/configuration/#events
+
+[events]
+lid_close = "umbriel msg output-disable:eDP-1"
+lid_open = "umbriel msg output-enable:eDP-1"
+
+# ==============================================================================
+# General
+# https://docs.noctalia.dev/umbriel/configuration/#general
+
+[general]
+autostart = ["noctalia"]
+focus_on_activate = false
+honor_restored_maximize = false
+mod_key = "Super"
+show_cheatsheet = true
+xwayland = true
+# Sharp X11 apps and games on scaled outputs; they see physical resolutions.
+xwayland_native_resolution = true
+
+# ==============================================================================
+# Includes
+# https://docs.noctalia.dev/umbriel/configuration/#include
+
+[include]
+files = []
+
+[include.optional]
+files = []
+
+# ==============================================================================
+# Input and keybinds
+# https://docs.noctalia.dev/umbriel/input/
+# https://docs.noctalia.dev/umbriel/keybinds/
+# https://docs.noctalia.dev/umbriel/actions/
+
+[input]
+client_window_drag = true
+middle_click_paste = true
+# Mod+right-click twice maximizes, as a double click on a title bar does.
+mod_right_double_click = "maximize"
+# While dragging a window (Mod+left-drag or its title bar), a right click makes
+# a tiled window float or a floating one tile when it is dropped.
+window_drag_toggle = "floating"
+
+[input.cursor]
+follows_focus = false
+hardware_cursor = true
+hide_timeout_ms = 0
+hide_when_typing = false
+size = 32
+theme = "Bibata Modern Ice"
+
+[input.drag_edge_scroll]
+delay_ms = 100
+enabled = true
+max_speed = 1500.0
+trigger_zone = 30
+
+[input.focus]
+follows_mouse = false
+follows_mouse_max_scroll = 0.5
+
+[input.keyboard]
+layout = "br"
+model = "abnt2"
+numlock_toggle = true
+options = "terminate:ctrl_alt_bksp"
+repeat_delay = 300
+repeat_rate = 60
+track_layout = "global"
+variant = ""
+
+[input.mouse]
+left_handed = false
+natural_scroll = false
+# accel_profile = "flat" # Omit to preserve the device default.
+# scroll_button = "MouseBack"
+# scroll_button_lock = false
+scroll_wheel_step = 60
+sensitivity = 0.0
+
+[input.tablet]
+calibration_matrix = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+enabled = true
+left_handed = false
+map_to_focused_output = false
+map_to_focused_window = false
+# map_to_output = "eDP-1" # Optional fixed mapping.
+
+[input.touch]
+enabled = true
+# map_to_output = "eDP-1" # Optional fixed mapping.
+
+[input.touchpad]
+accel_profile = "adaptive"
+click_method = "clickfinger"
+disable_on_external_mouse = false
+disable_while_typing = true
+left_handed = false
+natural_scroll = true
+scroll_factor = 1.5
+sensitivity = 0.5
+tap = true
+tap_button_map = "left_middle_right"
+
+# Per-device overrides are intentionally absent until a real device needs one.
+# Match the exact `Device` name from `libinput list-devices`.
+# [[input.device]]
+# name = "Example device"
+# sensitivity = 0.0
+
+# Defining [keybinds] replaces Umbriel's built-in bind set.
+# Within each subsection, bindings are sorted by modifier count first, then
+# alphabetically, as requested.
+[keybinds]
+
+# Applications
+# Keep XDG MIME handlers authoritative where a standardized default exists.
+# https://specifications.freedesktop.org/mime-apps/latest-single/
+# "Mod+B" = { action = "spawn:<browser-command>", repeat = false } # No standard XDG "open default browser empty" operation.
+"Mod+E" = { action = "spawn:xdg-open \"$HOME\"", repeat = false }
+"Mod+Return" = { action = "spawn:alacritty", repeat = false }
+"Mod+Shift+E" = { action = "spawn:alacritty -e yazi", repeat = false } # Optional keyboard-first file manager.
+
+# Focus and movement
+"Mod+Down" = "window-focus-down"
+"Mod+F1" = "window-focus-next"
+"Mod+Left" = "window-focus-left"
+"Mod+Right" = "window-focus-right"
+"Mod+Up" = "window-focus-up"
+"Mod+WheelDown" = "window-focus-right"
+"Mod+WheelUp" = "window-focus-left"
+# Optional multi-output navigation (Mod+Ctrl+Left/Right snap floating windows):
+# "Mod+Alt+PageUp" = "output-focus-previous"
+# "Mod+Alt+PageDown" = "output-focus-next"
+"Mod+Shift+Down" = "window-move-down"
+"Mod+Shift+Left" = "column-move-left"
+"Mod+Shift+Right" = "column-move-right"
+"Mod+Shift+Up" = "window-move-up"
+"Mod+Shift+WheelDown" = "column-move-right"
+"Mod+Shift+WheelUp" = "column-move-left"
+# "Mod+Ctrl+Shift+Left" = "window-move-to-output-previous"
+# "Mod+Ctrl+Shift+Right" = "window-move-to-output-next"
+
+# Floating (stacking) layout
+# Mod+Shift+F switches the current workspace between the traditional floating
+# layout and tiling. The other binds only act on floating windows; in a tiling
+# workspace, Mod+T floats a single window instead.
+"Mod+N" = { action = "window-minimize", repeat = false }
+"Mod+Ctrl+C" = { action = "window-center", repeat = false }
+"Mod+Ctrl+Down" = { action = "window-set-region:bottom", repeat = false }
+"Mod+Ctrl+Left" = { action = "window-set-region:left", repeat = false }
+"Mod+Ctrl+N" = { action = "window-restore-minimized", repeat = false }
+"Mod+Ctrl+Right" = { action = "window-set-region:right", repeat = false }
+"Mod+Ctrl+Up" = { action = "window-clear-region", repeat = false }
+"Mod+Shift+F" = { action = "workspace-set-layout:toggle stacking scrolling", repeat = false }
+
+# Scratchpad
+"Mod+Space" = "scratchpad-toggle"
+"Mod+Tab" = "scratchpad-focus-next"
+"Mod+Ctrl+Space" = { action = "window-restore-from-scratchpad", repeat = false }
+"Mod+Shift+Space" = { action = "window-move-to-scratchpad", repeat = false }
+
+# Session and shell
+"Mod" = "spawn:noctalia msg panel-toggle launcher"
+"Alt+Tab" = { action = "spawn:noctalia msg window-switcher hold", repeat = false }
+"Mod+Escape" = "session-quit"
+"Mod+L" = { action = "spawn:noctalia msg session lock", repeat = false }
+"Mod+Q" = { action = "window-close", repeat = false }
+"Mod+S" = { action = "spawn:noctalia msg settings-toggle", repeat = false }
+"Mod+Slash" = { action = "cheatsheet-toggle", repeat = false }
+"Mod+Shift+Escape" = { action = "shortcuts-inhibit-toggle", allow_when_inhibited = true, repeat = false }
+"Mod+Shift+N" = { action = "spawn:noctalia msg notification-dnd-toggle", repeat = false }
+
+# Special keys: Alienware m16 R1 / br-abnt2.
+# Fn+F1 is performance mode; Fn+F[2-6] are macro keys. Fn+F7 and Fn+F12 are
+# firmware/driver handled and intentionally unbound.
+# Fn+F8 emits Super+P and Fn+F9 emits Super+A.
+"Pause" = { action = "spawn:noctalia msg media toggle", allow_when_locked = true, repeat = false } # Fn+End
+"Print" = { action = "spawn:noctalia msg screenshot-region", repeat = false } # Fn+Home
+"XF86AudioLowerVolume" = { action = "spawn:noctalia msg volume-down", allow_when_locked = true, repeat = true }
+"XF86AudioMicMute" = { action = "spawn:noctalia msg mic-mute", allow_when_locked = true, repeat = false }
+"XF86AudioMute" = { action = "spawn:noctalia msg volume-mute", allow_when_locked = true, repeat = false }
+"XF86AudioNext" = { action = "spawn:noctalia msg media next", allow_when_locked = true, repeat = false }
+"XF86AudioPause" = { action = "spawn:noctalia msg media pause", allow_when_locked = true, repeat = false }
+"XF86AudioPlay" = { action = "spawn:noctalia msg media toggle", allow_when_locked = true, repeat = false }
+"XF86AudioPrev" = { action = "spawn:noctalia msg media previous", allow_when_locked = true, repeat = false }
+"XF86AudioRaiseVolume" = { action = "spawn:noctalia msg volume-up", allow_when_locked = true, repeat = true }
+"XF86AudioStop" = { action = "spawn:noctalia msg media stop", allow_when_locked = true, repeat = false }
+"XF86Macro1" = { action = "spawn:noctalia msg panel-toggle launcher", repeat = false } # Fn+F2
+"XF86Macro2" = { action = "overview-toggle", repeat = false } # Fn+F3
+"XF86Macro3" = { action = "spawn:noctalia msg panel-toggle clipboard", repeat = false } # Fn+F4
+"XF86Macro4" = { action = "spawn:noctalia msg media previous", allow_when_locked = true, repeat = false } # Fn+F5
+"XF86Macro5" = { action = "spawn:noctalia msg media next", allow_when_locked = true, repeat = false } # Fn+F6
+"XF86MonBrightnessDown" = { action = "spawn:noctalia msg brightness-down", allow_when_locked = true, repeat = true } # Fn+F10
+"XF86MonBrightnessUp" = { action = "spawn:noctalia msg brightness-up", allow_when_locked = true, repeat = true } # Fn+F11
+"XF86PerformanceMode" = { action = "spawn:noctalia msg power-cycle", repeat = false } # Fn+F1
+"Alt+Print" = { action = "spawn:noctalia msg screenshot-fullscreen all", repeat = false } # Fn+Alt+Home
+"Ctrl+Print" = { action = "spawn:noctalia msg screenshot-annotate", repeat = false } # Fn+Ctrl+Home
+"Shift+Print" = { action = "spawn:noctalia msg screenshot-fullscreen", repeat = false } # Fn+Shift+Home
+"Super+A" = { action = "spawn:noctalia msg panel-toggle control-center", repeat = false } # Fn+F9
+"Super+P" = { action = "spawn:alacritty -e wlr-randr", repeat = false } # Fn+F8; inspect/manage outputs from CLI.
+# "Mod+Ctrl+A" = { action = "spawn:noctalia msg annotate", repeat = false }
+
+# Power/sleep keys are intentionally not captured: systemd-logind remains the
+# standard authority for those hardware events.
+
+# Window state and layout
+"Mod+C" = "column-center"
+"Mod+Comma" = "window-consume-left"
+"Mod+F" = { action = "window-toggle-fullscreen", repeat = false }
+"Mod+M" = { action = "window-toggle-maximize-to-edges", repeat = false }
+"Mod+O" = { action = "overview-toggle", repeat = false }
+"Mod+Period" = "window-consume-right"
+"Mod+R" = "window-cycle-primary-extent"
+"Mod+T" = { action = "window-toggle-floating", repeat = false }
+"Mod+W" = { action = "column-toggle-tabbed", repeat = false }
+"Mod+Alt+Left" = "column-focus-tab-previous"
+"Mod+Alt+Right" = "column-focus-tab-next"
+"Mod+Ctrl+Comma" = "window-consume-from-left"
+"Mod+Ctrl+F" = { action = "window-toggle-maximize", repeat = false }
+"Mod+Ctrl+Period" = "window-consume-from-right"
+"Mod+Shift+O" = { action = "workspace-set-layout:toggle", repeat = false }
+"Mod+Shift+P" = { action = "window-toggle-pinned", repeat = false }
+"Mod+Shift+R" = "window-cycle-primary-extent-back"
+"Mod+Shift+T" = { action = "window-focus-switch-floating", repeat = false }
+
+# Workspaces
+"Mod+1" = "workspace-switch:1"
+"Mod+2" = "workspace-switch:2"
+"Mod+3" = "workspace-switch:3"
+"Mod+4" = "workspace-switch:4"
+"Mod+5" = "workspace-switch:5"
+"Mod+6" = "workspace-switch:6"
+"Mod+7" = "workspace-switch:7"
+"Mod+8" = "workspace-switch:8"
+"Mod+9" = "workspace-switch:9"
+"Mod+PageDown" = "workspace-next"
+"Mod+PageUp" = "workspace-previous"
+"Mod+Shift+1" = "window-move-to-workspace:1"
+"Mod+Shift+2" = "window-move-to-workspace:2"
+"Mod+Shift+3" = "window-move-to-workspace:3"
+"Mod+Shift+4" = "window-move-to-workspace:4"
+"Mod+Shift+5" = "window-move-to-workspace:5"
+"Mod+Shift+6" = "window-move-to-workspace:6"
+"Mod+Shift+7" = "window-move-to-workspace:7"
+"Mod+Shift+8" = "window-move-to-workspace:8"
+"Mod+Shift+9" = "window-move-to-workspace:9"
+
+# Application notes:
+# - GUI file manager: Dolphin fits the existing KDE/KIO/KWallet stack.
+# - mpv is a smaller playback-only alternative to VLC.
+# - swayimg is a small Wayland-native image viewer alternative to Gwenview.
+# - Keep richer on-demand applications when their features are useful; reducing
+#   package count is less important than avoiding redundant resident services.
+
+# ==============================================================================
+# Layer rules
+# https://docs.noctalia.dev/umbriel/layer-rules/
+
+[[layer_rule]]
+blur = true
+blur_ignore_alpha = 0.5
+blur_optimized = false
+blur_popups = true
+match.namespace = "^noctalia-(bar-[^\"]+|notification|dock|panel|attached-panel|osd|desktop-widget-[^\"]*)$"
+
+# ==============================================================================
+# Layout
+# https://docs.noctalia.dev/umbriel/layout/
+
+# Two ways of working, switched per workspace with Mod+Shift+F:
+#   - "scrolling": tiling, the default below;
+#   - "stacking": traditional floating windows, with title bars (see the window
+#     rules), edge/corner snapping while dragging and Mod+Ctrl+arrows.
+# To make a workspace start floating, add a rule such as:
+#   [[workspace]]
+#   index = 2
+#   layout.mode = "stacking"
+# Or, for every workspace of one display: [output."<name>".layout] mode = "stacking".
+[layout]
+extent_presets = [0.333, 0.5, 0.667]
+gap = 10
+mode = "scrolling"
+new_exits_fullscreen = []
+
+[layout.stacking]
+drop_zones = true
+
+[layout.dwindle]
+new_toward_cursor = false
+preserve_split = false
+
+[layout.master]
+default_width_fraction = 0.55
+new_becomes_master = false
+new_on_top = true
+position = "left"
+
+[layout.scrolling]
+center_focused = "on_overflow"
+center_underfull_strip = true
+default_extent_fraction = 0.5
+
+[layout.struts]
+bottom = 0
+left = 0
+right = 0
+top = 0
+
+[layout.tabs]
+default_display = "normal"
+middle_click_closes = true
+new_tab_position = "after_active"
+scroll_switches_tabs = true
+wrap_focus = true
+
+# ==============================================================================
+# Outputs
+# https://docs.noctalia.dev/umbriel/outputs/
+#
+# Prefer monitor identity ("<make> <model> <serial>") so settings follow the
+# physical display between ports. Verify the exact Config name with
+# `umbriel outputs` when the display is attached.
+
+# Built-in 16-inch AUO panel.
+[output."AU Optronics 0x3ca2 Unknown"]
+bit_depth = 10
+cyclic_workspaces = true
+direct_scanout = true
+enabled = true
+focus_at_startup = true
+hdr = "auto"
+mode = "2560x1600@60.012"
+position = [0, 0]
+scale = 1.25
+sdr_white = 203
+tearing = false
+transform = "normal"
+vrr = "always"
+workspace_axis = "vertical"
+workspaces = 9
+
+# LG TV SSCR2.
+[output."LG Electronics LG TV SSCR2 0x01010101"]
+bit_depth = 8
+cyclic_workspaces = true
+direct_scanout = true
+enabled = true
+focus_at_startup = false
+hdr = "auto"
+# mode = "3840x2160@119.880" # Faster KWin profile previously observed.
+mode = "3840x2160@60"
+scale = 2.0
+sdr_white = 203
+tearing = false
+transform = "normal"
+vrr = "disabled"
+workspace_axis = "vertical"
+workspaces = 9
+
+# Samsung TV/display.
+[output."Samsung Electric Company SAMSUNG 0x01000601"]
+bit_depth = 8
+cyclic_workspaces = true
+direct_scanout = true
+enabled = true
+focus_at_startup = false
+hdr = "off"
+mode = "1920x1080@60"
+scale = 1.0
+sdr_white = 203
+tearing = false
+transform = "normal"
+vrr = "disabled"
+workspace_axis = "vertical"
+workspaces = 9
+
+
+# Toshiba display. Verify its identity: KWin did not retain its EDID monitor-name
+# descriptor, so this hexadecimal model string remains the least certain one.
+[output."Toshiba America Info Systems Inc 0x9428 0x616d0000"]
+bit_depth = 8
+cyclic_workspaces = true
+direct_scanout = true
+enabled = true
+focus_at_startup = false
+hdr = "auto"
+mode = "3840x2160@60"
+scale = 2.7
+sdr_white = 203
+tearing = false
+transform = "normal"
+vrr = "fullscreen"
+workspace_axis = "vertical"
+workspaces = 9
+
+# `position` is intentionally omitted on detachable displays so automatic
+# placement remains possible when different subsets are connected.
+# `min_workspaces` is intentionally omitted because these outputs use the fixed
+# `workspaces = 9` model.
+# `screen_effect` is inherited from [effects] and is explicitly empty there.
+
+# ==============================================================================
+# Overview
+# https://docs.noctalia.dev/umbriel/workspaces-overview/
+
+[overview]
+background_blur = true
+scroll_factor_horizontal = 1.0
+scroll_factor_vertical = 1.0
+shortcut_keys = "1234567890"
+shortcuts = true
+workspace_wallpaper = true
+zoom = 0.5
+
+[hot_corners.bottom_left]
+enabled = false
+delay_ms = 500
+# action = "overview-open"
+
+[hot_corners.bottom_right]
+enabled = false
+delay_ms = 500
+# action = "overview-open"
+
+[hot_corners.top_left]
+action = "overview-open"
+delay_ms = 500
+enabled = true
+
+[hot_corners.top_right]
+enabled = false
+delay_ms = 500
+# action = "overview-open"
+
+# ==============================================================================
+# Scratchpads
+# https://docs.noctalia.dev/umbriel/scratchpads/
+#
+# No named scratchpads are active, so Umbriel provides the implicit `default`
+# scratchpad used by the keybinds above. Dedicated scratchpads remain examples
+# until they prove useful; defining any named scratchpad removes the implicit one.
+#
+# [[scratchpad]]
+# name = "terminal"
+# spawn_when_empty = "alacritty"
+#
+# [[scratchpad]]
+# name = "multimedia"
+# spawn_when_empty = "vlc"
+
+# ==============================================================================
+# Screencast
+# https://docs.noctalia.dev/umbriel/configuration/#screencast
+
+[screencast]
+disable_dynamic_confirmation = false
+
+# ==============================================================================
+# Security
+# https://docs.noctalia.dev/umbriel/security/
+#
+# Do not grant extra privileged Wayland globals globally. Add narrowly scoped
+# security-context rules only when a sandboxed application actually requires one.
+#
+# [[security_context_rule]]
+# match.sandbox_engine = "^flatpak$"
+# # Add only the specific globals required by that application.
+
+# ==============================================================================
+# Window rules
+# Rules combine in order; later matching values override earlier ones.
+# Prefer app_id/content_type over title matching where possible.
+# Inspect real IDs with `umbriel windows`.
+# https://docs.noctalia.dev/umbriel/window-rules/
+
+# Global blur.
+[[window_rule]]
+blur = true
+blur_optimized = false
+
+# ML4W look: unfocused windows are slightly translucent (inactive_opacity 0.9).
+# Video and games stay opaque; fullscreen already is (opaque_fullscreen).
+[[window_rule]]
+match.is_focused = false
+opacity = 0.9
+
+[[window_rule]]
+match.content_type = "video"
+opacity = 1.0
+
+[[window_rule]]
+match.content_type = "game"
+opacity = 1.0
+
+[[window_rule]]
+match.app_id = ["^mpv$", "^org[.]videolan[.]VLC$", "^vlc$"]
+opacity = 1.0
+
+# Traditional floating layout: title bars with buttons. "on" still lets apps
+# that draw their own header bar keep it, so nothing gets two bars.
+[[window_rule]]
+match.layout = "stacking"
+title_bar = "on"
+title_bar_buttons = ["minimize", "maximize", "close"]
+
+# Generic workspace 9 for ordinary unmatched tiled applications. Category
+# rules below override this. Floating/transient dialogs are not forcibly moved.
+[[window_rule]]
+match.is_floating = false
+default_workspace = 9
+
+# Flatpak runtime/platform/driver/theme entries are intentionally omitted: they do not create application windows.
+# Application rules below include the relevant installed Flatpak IDs and a few common runtime app_id fallbacks.
+
+# Workspace 1: browsers.
+[[window_rule]]
+match.app_id = [
+  "^app[.]zen_browser[.]zen$",
+  "^brave-browser$",
+  "^chromium$",
+  "^com[.]brave[.]Browser$",
+  "^firefox$",
+  "^google-chrome$",
+  "^io[.]gitlab[.]librewolf-community$",
+  "^librewolf$",
+  "^org[.]chromium[.]Chromium$",
+  "^org[.]mozilla[.]firefox$",
+  "^org[.]torproject[.]torbrowser-launcher$",
+  "^Tor Browser$",
+  "^tor-browser$",
+  "^vivaldi-stable$",
+  "^helium-browser$",
+  "^Helium$",
+]
+default_workspace = 1
+
+# Workspace 2: file managers.
+[[window_rule]]
+match.app_id = [
+  "^dolphin$",
+  "^org[.]kde[.]dolphin$",
+]
+default_workspace = 2
+
+# Workspace 3: multimedia.
+[[window_rule]]
+match.app_id = [
+  "^mpv$",
+  "^org[.]kde[.]gwenview$",
+  "^Gwenview$",
+  "^org[.]musicbrainz[.]Picard$",
+  "^org[.]videolan[.]VLC$",
+  "^vlc$",
+]
+default_workspace = 3
+
+# Workspace 4: communication.
+[[window_rule]]
+match.app_id = [
+  "^com[.]rtosta[.]zapzap$",
+  "^dev[.]vencord[.]Vesktop$",
+  "^org[.]telegram[.]desktop$",
+  "^TelegramDesktop$",
+  "^vesktop$",
+  "^ZapZap$",
+]
+default_workspace = 4
+
+# Workspace 5: programming.
+[[window_rule]]
+match.app_id = [
+  "^codium$",
+  "^com[.]vscodium[.]codium$",
+  "^VSCodium$",
+]
+default_workspace = 5
+
+# Workspace 6: office/documents/scanning.
+[[window_rule]]
+match.app_id = [
+  "^onlyoffice-desktopeditors$",
+  "^org[.]kde[.]okular$",
+  "^Okular$",
+  "^org[.]kde[.]skanpage$",
+  "^Skanpage$",
+  "^org[.]onlyoffice[.]desktopeditors$",
+]
+default_workspace = 6
+
+# Workspace 7: games and game launchers.
+[[window_rule]]
+match.app_id = [
+  "^com[.]valvesoftware[.]Steam$",
+  "^steam$",
+  "^steam_app_[0-9]+$",
+]
+default_workspace = 7
+
+[[window_rule]]
+match.content_type = "game"
+default_workspace = 7
+
+# Keep Steam game menus/pointers inside the game window when appropriate.
+[[window_rule]]
+match.app_id = "^steam_app_[0-9]+$"
+confine_pointer = true
+
+# Workspace 8: information and settings.
+[[window_rule]]
+match.app_id = [
+  "^com[.]github[.]tchx84[.]Flatseal$",
+  "^com[.]vysp3r[.]ProtonPlus$",
+  "^io[.]missioncenter[.]MissionCenter$",
+  "^missioncenter$",
+]
+default_workspace = 8
+
+[[window_rule]]
+match.app_id = "^dev[.]noctalia[.]Noctalia$"
+default_floating = true
+default_floating_size_px = { width = 1020, height = 900 }
+default_workspace = 8
+
+# Umbriel's screencast picker stays where it was invoked.
+[[window_rule]]
+match.app_id = "^dev[.]noctalia[.]UmbrielSharePicker$"
+default_floating = true
+default_floating_size_px = { width = 800, height = 600 }
+
+# Picture-in-picture stays transient/floating instead of being reclassified.
+[[window_rule]]
+match.title = "^(Picture-in-Picture|Picture in picture)$"
+default_floating = true
+default_maximize = false
+default_position = { x = 20, y = 20, anchor = "bottom_right" }
+
+[[window_rule]]
+match.title = "^notificationtoasts_.+_desktop"
+default_focused = false
+default_pinned = true
+default_position = { x = 0, y = 0, anchor = "bottom_right" }
+
+# Dracula scratchpad accent.
+[[window_rule]]
+match.is_scratchpad = true
+border_color_focused = "#FFB86CFF"
+border_color_unfocused = "#6272A4FF"
+
+# A dedicated VLC scratchpad is intentionally NOT active: it would conflict
+# with the explicit multimedia -> workspace 3 policy. Keep it as an option only.
+# [[window_rule]]
+# match.app_id = "^vlc$"
+# default_scratchpad = "multimedia"
+
+# Example for an application that draws its own corners/shadow:
+# [[window_rule]]
+# match.app_id = "^org[.]gnome[.]TextEditor$"
+# border_width = 0
+# corner_radius = 0
+# shadow = false
+
+# ==============================================================================
+# Workspaces
+# https://docs.noctalia.dev/umbriel/workspaces/
+
+[workspaces]
+back_and_forth = false
+empty_above = false
+
+# Static workspaces are already defined per output with `workspaces = 9`.
+# Individual [[workspace]] rules can override layout settings by index/name
+# without changing the application-routing policy above.

@@ -1,0 +1,228 @@
+# Noctalia (v5) configuration
+#
+# Copy this file to ~/.config/noctalia/config.toml. Changes apply when the file
+# is saved. Validate edits with `noctalia config validate`.
+#
+# Settings changed in the GUI are written to ~/.local/state/noctalia/settings.toml,
+# which is loaded after this file and wins. If a value here seems ignored, look there.
+#
+# Complete reference: https://docs.noctalia.dev/noctalia/
+# Companion compositor config: ~/.config/umbriel/config.toml
+
+# ==============================================================================
+# Shell
+# https://docs.noctalia.dev/noctalia/configuration/
+
+[shell]
+font_family = "sans-serif"
+# Without Plasma there is no polkit agent; Noctalia provides one.
+polkit_agent = true
+telemetry_enabled = false
+time_format = "{:%H:%M}"
+ui_scale = 1.0
+# Umbriel overview integration: type to search apps, close it after launching.
+umbriel_overview_close_on_launch_enabled = true
+umbriel_overview_type_to_launch_enabled = true
+
+[shell.animation]
+enabled = true
+speed = 1.0
+
+# Same idea as the compositor's shadow: wide, soft, no offset (ML4W look).
+[shell.shadow]
+alpha = 0.4
+blur = 24
+offset_x = 0
+offset_y = 0
+
+[shell.panel]
+attach_clipboard = false
+attach_control_center = false
+attach_launcher = false
+attach_wallpaper = false
+background_blur = true
+
+[osd]
+position = "bottom_center"
+
+# ==============================================================================
+# Theme
+# https://docs.noctalia.dev/noctalia/theming/
+#
+# Dracula matches the palette of the Umbriel config. For the full ML4W behaviour
+# (colors taken from the wallpaper), use: source = "wallpaper". The compositor's
+# border colors don't follow it by themselves.
+
+[theme]
+builtin = "Dracula"
+mode = "dark"
+source = "builtin"
+# wallpaper_scheme = "m3-content" # Used when source = "wallpaper".
+
+# ==============================================================================
+# Bar
+# https://docs.noctalia.dev/noctalia/bar/
+#
+# ML4W look: a floating, rounded, translucent and blurred top bar, with each
+# widget in its own capsule.
+
+[bar.default]
+enabled = true
+position = "top"
+layer = "top"
+reserve_space = true
+
+thickness = 36
+margin_edge = 8        # > 0 floats the bar; close to the compositor's 10 px gap
+margin_ends = 10
+concave_edge_corners = false
+radius = 12
+
+background_opacity = 0.55
+compositor_blur = true # Needs the Umbriel layer rule for ^noctalia-bar-.
+border = "outline_variant"
+border_width = 0.0
+shadow = true
+
+padding = 10
+widget_spacing = 6
+hover_highlight = true
+show_tooltip = true
+
+capsule = true
+capsule_fill = "surface_container"
+capsule_opacity = 0.85
+capsule_thickness = 0.76
+
+start = ["launcher", "workspaces", "active_window"]
+center = ["clock"]
+end = [
+  "media",
+  "tray",
+  "cpu",
+  "ram",
+  "network",
+  "bluetooth",
+  "volume",
+  "brightness",
+  "battery",
+  "power_profile",
+  "notifications",
+  "control-center",
+  "session",
+]
+
+# External displays: a shorter list, without the laptop-only widgets.
+# `match` is a connector name or part of the monitor description.
+[bar.default.monitor.lg]
+match = "LG"
+end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+
+[bar.default.monitor.samsung]
+match = "SAMSUNG"
+end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+
+[bar.default.monitor.toshiba]
+match = "Toshiba"
+end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+
+# ==============================================================================
+# Widgets
+# https://docs.noctalia.dev/noctalia/bar/widgets/
+#
+# A name in the bar lists that has no [widget.<name>] entry is used as the widget
+# type with its defaults. Middle-click a widget to open its settings.
+
+[widget.clock]
+format = "{:%Y/%m/%d - %A - %H:%M}"
+
+[widget.cpu]
+type = "sysmon"
+stat = "cpu_usage"
+
+[widget.ram]
+type = "sysmon"
+stat = "ram_used"
+
+# Glyph only; the value shows on hover.
+[widget.bluetooth]
+peek = true
+
+[widget.brightness]
+peek = true
+
+[widget.network]
+peek = true
+
+[widget.volume]
+device = "output"
+show_label = true
+
+[widget.volume.actions]
+middle = "volume-mute"
+
+# ==============================================================================
+# Wallpaper
+# https://docs.noctalia.dev/noctalia/desktop/wallpaper/
+#
+# An empty directory means the XDG Pictures folder.
+
+[wallpaper]
+enabled = true
+directory = ""
+fill_mode = "crop"
+transition = ["fade", "wipe", "disc"]
+transition_duration = 1000
+transition_on_startup = false
+
+[wallpaper.automation]
+enabled = false
+interval_seconds = 1800
+order = "random"
+
+# ==============================================================================
+# Idle
+# https://docs.noctalia.dev/noctalia/services/idle/
+#
+# Lock, then turn the displays off. Suspend stays with systemd-logind (lid, power
+# key), as in the Umbriel config. Video players and games inhibit idle themselves.
+
+[idle]
+behavior_order = ["lock", "screen-off"]
+pre_action_fade_seconds = 5.0
+
+[idle.behavior.lock]
+action = "lock"
+enabled = true
+timeout = 600
+
+[idle.behavior.screen-off]
+action = "screen_off"
+enabled = true
+locked_timeout = 60 # Already locked: displays off after 1 minute.
+timeout = 660
+
+# ==============================================================================
+# Night light
+# https://docs.noctalia.dev/noctalia/services/
+#
+# Off by default. With enabled = true it needs a schedule: fixed times as below,
+# or a location (see [location] in the docs).
+
+[nightlight]
+enabled = false
+temperature_day = 6500
+temperature_night = 4000
+# start_time = "20:30"
+# stop_time = "07:30"
+
+# ==============================================================================
+# Hooks
+# https://docs.noctalia.dev/noctalia/configuration/
+#
+# Optional commands for shell events (started, wallpaper_changed, colors_changed,
+# session_locked, session_unlocked, battery_under_threshold...). None needed yet.
+#
+# [hooks]
+# battery_low_percent_threshold = 15
+# battery_under_threshold = "notify-send -u critical 'Battery low'"
