@@ -1,0 +1,13 @@
+# greetd configuration: /etc/greetd/config.toml
+# https://man.sr.ht/~kennylevinsen/greetd/
+# https://docs.noctalia.dev/greeter/installation/
+
+[terminal]
+# The virtual terminal the login screen runs on.
+vt = 1
+
+[default_session]
+# Must be the session wrapper (it starts the greeter's own compositor), with its
+# full path: check it with `command -v noctalia-greeter-session`.
+command = "/usr/bin/noctalia-greeter-session"
+user = "greeter"
