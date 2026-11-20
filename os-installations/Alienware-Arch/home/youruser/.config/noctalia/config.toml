@@ -14,7 +14,7 @@
 # https://docs.noctalia.dev/noctalia/configuration/
 
 [shell]
-font_family = "sans-serif"
+font_family = "Hack Nerd Font"
 # Without Plasma there is no polkit agent; Noctalia provides one.
 polkit_agent = true
 telemetry_enabled = false
@@ -44,6 +44,21 @@ background_blur = true
 
 [osd]
 position = "bottom_center"
+
+# ==============================================================================
+# Battery
+# https://docs.noctalia.dev/noctalia/services/battery/
+#
+# Built-in low-battery alerts, for the combined charge of the laptop's
+# batteries. Each one shows once; charging above its level re-arms it.
+#   1. warning_threshold (10%): "Battery low", normal notification.
+#   2. 5% (fixed): critical notification.
+#   3. 2% (fixed): persistent critical notification, the computer will shut
+#      down soon; stays on screen until charged or dismissed.
+# They stay visible in Do Not Disturb, muted. 0 disables all three.
+
+[battery]
+warning_threshold = 30
 
 # ==============================================================================
 # Theme
@@ -99,6 +114,7 @@ center = ["clock"]
 end = [
   "media",
   "tray",
+  "keyboard_layout",
   "cpu",
   "ram",
   "network",
@@ -116,15 +132,15 @@ end = [
 # `match` is a connector name or part of the monitor description.
 [bar.default.monitor.lg]
 match = "LG"
-end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
 
 [bar.default.monitor.samsung]
 match = "SAMSUNG"
-end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
 
 [bar.default.monitor.toshiba]
 match = "Toshiba"
-end = ["media", "tray", "volume", "notifications", "control-center", "session"]
+end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
 
 # ==============================================================================
 # Widgets
@@ -135,6 +151,9 @@ end = ["media", "tray", "volume", "notifications", "control-center", "session"]
 
 [widget.clock]
 format = "{:%Y/%m/%d - %A - %H:%M}"
+
+[widget.keyboard_layout]
+display = "short" # BR, GB, FR
 
 [widget.cpu]
 type = "sysmon"
@@ -210,19 +229,16 @@ timeout = 660
 # or a location (see [location] in the docs).
 
 [nightlight]
-enabled = false
+enabled = true
 temperature_day = 6500
-temperature_night = 4000
-# start_time = "20:30"
-# stop_time = "07:30"
+temperature_night = 5200
+start_time = "17:00"
+stop_time = "08:00"
 
 # ==============================================================================
 # Hooks
-# https://docs.noctalia.dev/noctalia/configuration/
+# https://docs.noctalia.dev/v5/automation/hooks/
 #
-# Optional commands for shell events (started, wallpaper_changed, colors_changed,
-# session_locked, session_unlocked, battery_under_threshold...). None needed yet.
-#
-# [hooks]
-# battery_low_percent_threshold = 15
-# battery_under_threshold = "notify-send -u critical 'Battery low'"
+# None needed. Low battery: Noctalia warns by itself at [battery]
+# warning_threshold (default 10%), then at 5% and 2%. Power profile on AC and
+# battery: tuned-ppd switches it (battery_detection in /etc/tuned/ppd.conf).

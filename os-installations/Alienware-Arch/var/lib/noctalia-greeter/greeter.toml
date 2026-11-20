@@ -59,7 +59,8 @@ theme = "Bibata-Modern-Ice" # The theme's folder name in /usr/share/icons.
 size = 32
 
 [keyboard]
-layout = "br"
+layout = "br,gb,fr"
+options = "grp:alt_shift_toggle" # Alt + Shift switches between layouts
 numlock = true
 
 [pointer]

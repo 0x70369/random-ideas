@@ -30,6 +30,7 @@ Each step exists as an independent Bash script (Unix philosophy: one script per 
 | `12c-rip-dvd-audio.bash [device] [dest]` | DVD-Audio → FLAC | Confirms after showing the track list |
 | *(Picard)* | Tags and file tree | Graphical tool, by design |
 | `14-convert-to-opus.bash <dir>` | FLAC → Opus in place, then R128 normalization tags (rsgain) | None |
+| `17-fix-opus-pages.bash <dir>` | Repairs older Opus files that VLC shows without a duration (lossless) | None |
 | `15a-backup-video-disc.bash [device] [dest]` | Bit-exact backup of a DVD-Video or VCD/SVCD | Asks the folder name |
 | `15b-compress-video-disc.bash <disc_dir> [dest]` | DVD backup → MKV (x265) | You pick the title(s) and track counts, and name each file |
 
@@ -39,11 +40,41 @@ Common behavior (the shared parts live in `common.bash`, next to the scripts; ev
 - On exit, `outcome-success.oga` plays on success and `dialog-error.oga` on failure. Both files must sit next to the scripts.
 - **Ctrl+C** (or `kill`) stops the script with an error status, so `dialog-error.oga` plays. Without this, a program that catches Ctrl+C and exits 0 would make bash simply carry on with the next command.
 - The rip scripts refuse to run if the destination still holds audio files from another disc, so two discs never get mixed.
-- Temporary files and mount points are created inside `/temp`.
+- A missing program stops the script before it starts, pointing to `10a-install-dependencies.bash`, which says which package (official or AUR) provides it.
+- Pressing Enter at a `[Y/n]` question means yes; closing the input (Ctrl+D) means no.
+- Temporary files and mount points are created inside `/temp`. Two exceptions write their temporary file next to the file they replace, then rename it over the original (an atomic replace on the same file system): the HDCD decoding in `14` and the repagination in `17`. A file is therefore never left half-written, even if the script is interrupted.
+- A disc mounted by a script (`11`, `12c`, `15a`) is unmounted on every exit, including errors and Ctrl+C.
 - **Logs:** when run from a terminal (both input and output; with piped input, e.g. `echo y | ...`, the script runs directly), each script re-runs itself under `script` (util-linux), which records everything shown — including prompts and your answers — to `/temp/logs/<script>-<date>.log`. Progress bars keep working because the script still runs in a (pseudo-)terminal. When the output is captured instead (`type=$(./11-identify-media.bash)`), nothing is logged, so the captured token stays clean.
 - **Free space:** `/temp` is RAM. The DVD scripts compare the disc size with the free space first and stop before copying if it would not fit (`12b`, `15a`: disc + 10%; `12c`: 3× the disc, because decoded MLP can be about twice the disc size).
 - **One script per drive:** the scripts that read the drive (`10b`, `11`, `12a`, `12b`, `12c`, `15a`) take an exclusive `flock` on `/temp/locks/<device>.lock` and stop with an error if another one is already using that drive (e.g. `11` while `12a` rips). The lock is released when the script exits.
 - **Eject:** after a successful rip, the disc is ejected (`eject -v`) — a visual "next disc" signal. On failure it stays in, so you can retry. Exception: `12a` ejects once cyanrip has finished, whatever its verdict — a disc that ripped badly has to come out to be cleaned anyway.
+
+**How the scripts are written (for maintenance):**
+- Simplicity first, then security, then performance.
+- No line is longer than 80 columns.
+- ShellCheck reports nothing, not even with `-o all`.
+- Anything used by more than one script lives in `common.bash`:
+
+  | Helper | What it does |
+  |---|---|
+  | `die` | Prints an error and stops |
+  | `need` | Checks that the required programs exist |
+  | `confirm` | Asks a `[Y/n]` question |
+  | `use_device` | Picks the drive, checks it and takes the drive lock |
+  | `drive_model` | Reads the drive's vendor and model |
+  | `set_drive_id` | Builds the drive id and the path of its offset file |
+  | `need_disc_space` | Stops if `/temp` cannot hold the disc |
+  | `check_dest` | Refuses a destination that already holds another disc's audio |
+  | `mount_disc`, `unmount_disc`, `disc_dir` | Mount the disc, unmount it, find a folder on it |
+  | `read_titles` | Reads the DVD title numbers to process |
+  | `each` | Runs a function in parallel (see below) |
+
+- **Parallel work:** what runs in parallel is a normal Bash function, made available to child shells with `export -f`. `each FUNCTION` then runs it once per file, one process per core. `each` uses `xargs -0 -r -n 1 -P "$(nproc)"`:
+  - `-r` runs nothing on empty input;
+  - xargs exits with 123 if any job failed, so one failure fails the whole step.
+
+  This replaces the earlier `bash -c '...'` strings, whose code ShellCheck could not check.
+- **Output of parallel jobs:** each job collects its output in a variable and prints it in one block when it finishes. Parallel jobs therefore never interleave their lines, and no temporary log files are needed.
 
 Chaining identification and ripping in your shell:
 ```bash
@@ -78,7 +109,7 @@ yay -S --needed lib32-libcdio && yay -S --needed --asdeps lib32-libdvdcss
 ```
 If `libdvd-audio` fails (its MLP support is weak and the project has been inactive since 2017), the proprietary, paid alternative is `dvdae-bin` (AUR).
 
-`script`, `eject` and `lsblk` come from `util-linux`, part of every Arch install.
+`script`, `eject`, `lsblk` and `flock` come from `util-linux`, part of every Arch install. `17` needs `python3`, which is not listed separately: `picard` depends on `python`, so it is installed with it. If you ever remove Picard, install `python` explicitly.
 
 ### 0b. Drive read offset (once per drive)
 
@@ -250,7 +281,7 @@ ls "$mnt/AUDIO_TS"/ATS_*_0.IFO          # more than one = more than one titleset
 mkdir -pv /temp/rip && cd /temp/rip
 dvda2wav -A "$mnt/AUDIO_TS" -c /dev/sr0   # -c: decrypt CPPM
 find . -maxdepth 1 -name '*.wav' -print0 |
-  xargs -0 --verbose -P"$(nproc)" -I{} flac --best --verify --delete-input-file {}
+  xargs -0 -n 1 -P "$(nproc)" --verbose flac --best --verify --delete-input-file
 sudo umount -v "$mnt" && rmdir -v "$mnt"
 ```
 On burned discs the folder may be lowercase: find it with `find "$mnt" -maxdepth 1 -iname AUDIO_TS`.
@@ -298,31 +329,14 @@ Click **Make It So**.
 
 ## 4. Convert to Opus (`14-convert-to-opus.bash /temp/final`)
 
+For each FLAC (stereo shown), in parallel, one process per core:
 ```bash
-find /temp/final -type f -iname '*.flac' -print0 |
-  xargs -0 -P"$(nproc)" -I{} bash -c '
-    f="$1"
-    channels="$(metaflac --show-channels "$f" 2>/dev/null | tail -n1 | tr -cd "0-9")"
-    if ! [[ "$channels" =~ ^[0-9]+$ ]] || [[ "$channels" -lt 1 ]]; then
-        echo "Failed: $f (metaflac did not return a clean channel count: [$channels])" >&2
-        exit 0
-    fi
-    bitrate=$(( channels * 256 ))
-    out="${f%.*}.opus"
-    logfile="$(mktemp -p /temp)"
-    trap '\''rm -f -- "$out" "$logfile"; exit 130'\'' INT TERM
-    if opusenc --bitrate "$bitrate" "$f" "$out" >"$logfile" 2>&1; then
-        trap - INT TERM
-        echo "=== OK: $f (channels=$channels bitrate=$bitrate) ==="
-        cat "$logfile"
-        rm -v -- "$f"
-    else
-        echo "=== Failed: $f (channels=$channels bitrate=$bitrate) ===" >&2
-        cat "$logfile" >&2
-        rm -fv -- "$out"
-    fi
-    rm -fv "$logfile"
-  ' _ {}
+metaflac --show-channels track.flac                       # 2 -> 512 kbit/s
+opusenc --bitrate 512 --max-delay 62 track.flac track.opus
+ffmpeg -nostdin -v error -i track.opus -f null -          # must print nothing
+ffprobe -v error -show_entries format=duration -of csv=p=0 track.opus
+metaflac --show-total-samples --show-sample-rate track.flac
+rm -v track.flac      # only if the decode was clean and the lengths match
 ```
 
 **Why:**
@@ -331,8 +345,15 @@ find /temp/final -type f -iname '*.flac' -print0 |
 - No `--discard-comments`/`--discard-pictures`: by default `opusenc` copies the Vorbis comments and the embedded cover from the FLAC — exactly what Picard wrote.
 - **ReplayGain:** `opusenc` converts `REPLAYGAIN_*` tags into the Opus header *output gain*, which every player applies, always (album gain −10 dB → header gain −15 dB, normalized to −23 LUFS). The files would then play at another volume than the CD everywhere. `12a` does not write these tags (`-K`); if any FLAC still has them (e.g. from a Picard plugin), `14` removes them with `metaflac --remove-tag` before converting. Normalization is done afterwards, the Opus way (4b). Check an existing file with `opusinfo file.opus | grep 'Playback gain'`.
 - The channel count is validated: an empty or non-numeric value would become an invalid `--bitrate`.
-- **Checked before deleting:** after each encode, the Opus is decoded completely (`ffmpeg -v error -i file.opus -f null -`, which must print nothing) and its duration (`ffprobe`) is compared with the FLAC's (`metaflac` total samples ÷ sample rate); they may differ by at most 0.1 s. If either check fails, the Opus is removed and the FLAC stays (tested with a deliberately truncated Opus).
-- Ctrl+C during an encode removes the half-written `.opus` and its log; the FLAC stays (tested). The cleanup is disarmed once the Opus is complete and checked, before the FLAC is deleted.
+- **Small Ogg pages (`--max-delay`):** by default opusenc puts up to 1 s of audio in each Ogg page (~56 KB at 512 kbit/s). VLC 3 then often cannot find the duration (`--:--`, no seeking; VLC for iOS shows the track as "live" with a stop button): it reads the end of the file in windows starting with 8500 bytes and never sees a complete last page if that page is larger. `14` passes `--max-delay` = 32000 ÷ bitrate in kbit/s (at least 20 ms), which keeps pages around 4 KB (62 ms at 512 kbit/s). The audio is identical; the file grows by about 0.7%. Tested with VLC 3.0.20: opusenc's defaults gave no duration in 7 of 7 files, small pages gave the right one in all. Files made before this: see 4c.
+- **Checked before deleting:** after each encode, two checks must pass, otherwise the Opus is removed and the FLAC stays:
+  - The Opus is decoded completely (`ffmpeg -v error -i file.opus -f null -`, which must print nothing).
+  - Its duration (`ffprobe`) is compared with the FLAC's (`metaflac` total samples ÷ sample rate); they may differ by at most 0.1 s.
+  
+  A FLAC whose length `metaflac` cannot give (total samples 0: a broken or truncated FLAC) also stays. An earlier version only checked the decode in that case and deleted the FLAC, even though a test showed the Opus held 0.02 s of audio.
+- Ctrl+C during an encode removes the half-written `.opus`; the FLAC stays. The cleanup is disarmed once the Opus is complete and checked, before the FLAC is deleted.
+- The FLAC is deleted only if the conversion succeeded. If any file failed (its `=== Failed` block says why), the script exits with an error before the normalization step, and the failed FLACs are kept.
+- One process per core: here the CPU, not the drive, is the bottleneck. Each file's output is printed in one block when it finishes.
 
 ### 4a. HDCD (asked only when a disc has it)
 
@@ -343,12 +364,16 @@ ffmpeg -i track.flac -af hdcd -c:a pcm_s32le -f null - 2>&1 | grep 'HDCD detecte
 Only when an album has HDCD tracks does `14` ask, once per album, whether to decode them. Decoding restores the extended range the disc was mastered with, but sounds different from a plain CD player (peak extension can expand the top 3 dB into 9 dB) — and the FLACs are deleted after the conversion, so the choice is final. If yes, each HDCD track is decoded to a 24-bit FLAC that replaces the original, keeping tags and cover:
 ```bash
 ffmpeg -i track.flac -map 0 -c:v copy -af hdcd -c:a flac -compression_level 8 \
-       -sample_fmt s32 -bits_per_raw_sample 24 -fflags +bitexact -flags:a +bitexact tmp.flac
+       -sample_fmt s32 -bits_per_raw_sample 24 -fflags +bitexact -flags:a +bitexact \
+       -f flac .XXXXXX.hdcdtmp
+chmod --reference=track.flac .XXXXXX.hdcdtmp && mv -f .XXXXXX.hdcdtmp track.flac
 ```
-The decoded file no longer has HDCD codes, so a rerun does not ask again. Without a terminal to answer on, `14` stops before converting anything. Tested with the HDCD samples of libhdcd's test suite.
-- One log file per process (`mktemp`): a fixed file name shared by parallel processes gets overwritten by the others. Each file's output is printed in one block when it finishes, so parallel encoders don't interleave their progress lines.
-- The FLAC is deleted only if the conversion succeeded. If any FLAC is left at the end, the script exits with an error.
-- `-P"$(nproc)"`: one process per core — this is where the CPU, not the drive, is the bottleneck.
+- **Where the decoded file goes:** it is written next to the original and renamed over it, which is atomic on the same file system, and it keeps the original's permissions.
+  - An earlier version wrote it in `/temp` and moved it to the album folder. Across file systems, `mv` copies the data, so an interruption could leave a truncated FLAC. That file also kept the 0600 permissions `mktemp` gives.
+  - The `.hdcdtmp` extension means a leftover from a killed run is never taken as a track.
+- **Rerunning:** the decoded file no longer has HDCD codes, so a rerun does not ask again.
+- **No terminal:** if there is no terminal to answer on, `14` stops before converting anything.
+- **Tests:** the decoding was tested with the HDCD samples of libhdcd's test suite; the replacement (tags, cover and permissions kept) with a plain 16-bit FLAC.
 
 At the end `/temp/final` holds only `.opus` files in the `Artist(s)/Album - Year/[Disco N/]NN - Title.opus` tree, ready to be moved off the tmpfs.
 
@@ -366,6 +391,13 @@ rsgain custom -a -s i -c p -o s "/temp/final/Artist/Album - Year"/*.opus
 - `-o s` — R128 tags at −23 LUFS, header gain set to 0 (which also restores the CD's volume on any Opus file that got a header gain earlier). Some players (foobar2000, among others) add +5 dB to Opus files to match ReplayGain's −18 LUFS; that is the player's choice, the tags stay standard.
 - `14` groups the files per album from the tree (a `Disco N`/`Disc N`/`CD N` folder belongs to the album above it), runs one `rsgain` per album in parallel, prints each album's result in one block and exits with an error if any album failed. It only runs once every FLAC was converted, so no album is measured incomplete.
 - **Already-tagged albums are skipped:** before calling `rsgain`, `14` reads each file's tags with `ffprobe`; an album whose files all have both `R128_TRACK_GAIN` and `R128_ALBUM_GAIN` is skipped. So running `14` on `/temp/final` after ripping another CD only measures the new album — plus any album an earlier run failed to tag. The check is per album, not per file: a new file in an album (e.g. a later `Disco N`) changes the album gain of every file in it, so that whole album is measured again. With no FLAC left, `14` only does this check.
+
+
+### 4c. Repairing older Opus files (`17-fix-opus-pages.bash <dir>`)
+
+For Opus files encoded with opusenc's default page size (everything from the older `0x` scripts and from `14` before `--max-delay`). It is lossless: the Opus packets are copied byte for byte and only regrouped into pages of about 4 KB; the header pages (OpusHead, OpusTags with tags and cover) are copied unchanged; the granule positions are recomputed from the packets (RFC 6716 frame sizes) and checked against the original pages, keeping the original end trimming. Before replacing a file it checks: same packets, same final granule, valid CRCs, same duration in `ffprobe`, clean `ffmpeg` decode. The new file is written next to the original (`.XXXXXX.fixtmp`; not `*.opus`, so a leftover from a killed run is never taken as a track), checked, and renamed over it (atomic), keeping permissions and date. If the folder is not writable, the file is reported as failed and left unchanged. Files already with small pages are skipped; unusual files (chained streams, trailing data, mismatching timing) are reported and left untouched. ffmpeg cannot do this remux: it refuses the embedded cover. Tested: decoded audio identical (MD5), tags/cover/R128/pre-skip identical, VLC shows the duration.
+
+The VLC bug itself is described in `vlc-bug-report.md`, ready to be filed at https://code.videolan.org/videolan/vlc/-/issues. `vlc-ogg-length-report.bash` collects the data for it (page layout, the length VLC reports, SHA-256 of the decoded audio): `vlc-ogg-length-report.bash -r DIR BAD.opus GOOD.opus` compares a file VLC fails on (A), its copy repaginated by `17` (C; `17` and `common.bash` must sit next to it) and a file it reads fine (B); `--generate DIR` builds a reproducer from pink noise.
 
 ---
 
@@ -399,11 +431,18 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
   -o "/temp/video-final/Movie Name (2020).mkv" \
   -e x265 --encoder-preset slow -q 20 --comb-detect --decomb \
   --crop 0:0:0:0 \
-  -a 1,2,3 -E copy,copy,copy --audio-fallback flac24 \
+  -a 1,2,3 -E copy,copy,copy -B 6144,6144,6144 --audio-fallback opus \
   -s 1,2 -m
 ```
 - **Video:** x265 at CRF 20, `slow` preset — a large size reduction from the DVD's MPEG-2 at close to transparent quality.
-- **Audio and subtitles:** copied untouched (`-E copy`). They are small; re-encoding would only risk quality. If a track cannot be passed through, the fallback is FLAC 24-bit, which is lossless.
+- **Audio and subtitles:** copied untouched (`-E copy`). They are small, and re-encoding a lossy track (AC-3, DTS, MP2) would only lose more.
+- **Audio HandBrake cannot pass through (DVD LPCM):** encoded to Opus (`--audio-fallback opus`) at 256 kbit/s per channel, the same ceiling as `14`.
+  - `-B 6144` asks for HandBrake's highest bitrate, and HandBrake caps it for Opus at 256 kbit/s × channels (LFE included), so stereo gets 512 and 5.1 gets 1536.
+  - Without `-B`, HandBrake's default would be 96 kbit/s per channel pair.
+  - Copied tracks ignore `-B`.
+  - All channels are kept: for Opus, HandBrake picks the largest mixdown the source has, up to 7.1, and never upmixes.
+  - Tested with HandBrakeCLI 1.7.2 on a source with a 5.1 PCM track and a stereo AC-3 track: the PCM track came out as 5.1 Opus at 1536 kbit/s, and the AC-3 track was passed through unchanged.
+  - Inside MKV the VLC Ogg page problem (4c) does not apply.
 - **Chapters:** kept as MKV chapter markers (`-m`).
 - **No cropping** (`--crop 0:0:0:0`): HandBrake crops black bars automatically by default, and that detection can cut real picture in dark scenes. Bars cost almost nothing to encode.
 - One `.mkv` per title: for a TV season, each episode is usually its own title.
@@ -427,6 +466,7 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 | DTS (core, DTS-ES, DTS 96/24) | DVD-Video, DVD-Audio |
 | Dolby Digital / AC-3 | DVD-Video |
 | MPEG-1/2 Audio Layer II | DVD-Video (common on European discs), Video CD |
+| Opus | produced by us, not native to discs |
 
 (DTS-HD Master Audio, Dolby TrueHD and DTS-HD High Resolution only exist on Blu-ray/HD DVD — they do not apply to a CD/DVD drive.)
 
@@ -465,7 +505,14 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 - FFmpeg hdcd filter: https://ayosec.github.io/ffmpeg-filters-docs/7.0/Filters/Audio/hdcd.html
 - libhdcd (test samples): https://github.com/bp0/libhdcd
 - flock(1): https://www.mankier.com/1/flock
+- opusenc(1) (`--max-delay`): https://opus-codec.org/docs/opus-tools/opusenc.html
+- VLC `Oggseek_ProbeEnd`: https://github.com/videolan/vlc/blob/master/modules/demux/oggseek.c
+- VLC fix "demux: ogg: fix last page probing" (2022): https://mailman.videolan.org/pipermail/vlc-commits/2022-December/067730.html
+- RFC 6716 §3.1 (Opus TOC byte, frame sizes): https://datatracker.ietf.org/doc/html/rfc6716#section-3.1
 - BashFAQ/045 (locking): https://mywiki.wooledge.org/BashFAQ/045
+- Bash manual — shell functions (`export -f`): https://www.gnu.org/software/bash/manual/html_node/Shell-Functions.html
+- xargs(1) (`-r`, exit status 123): https://man.archlinux.org/man/xargs
+- picard (Arch package, depends on `python`): https://archlinux.org/packages/extra/x86_64/picard/
 - Picard source (cyanrip log support, PICARD-3346, 3.0): https://github.com/metabrainz/picard/blob/master/picard/disc/cyanriplog.py
 - cyanrip source (defaults without metadata: "Unknown disc", "Unknown track"): https://github.com/cyanreg/cyanrip/blob/master/src/cyanrip_main.c
 - opus-tools source (ReplayGain → header gain): https://github.com/xiph/opus-tools/blob/master/src/flac.c
@@ -487,5 +534,6 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 - vcdxrip man page: https://man.archlinux.org/man/vcdxrip.1.en
 - vcdimager (Arch package): https://archlinux.org/packages/extra/x86_64/vcdimager/
 - HandBrakeCLI command-line reference: https://handbrake.fr/docs/en/latest/cli/command-line-reference.html
+- HandBrake source (Opus bitrate limits and default, fallback settings, default mixdowns): https://fossies.org/linux/HandBrake/libhb/common.c
 - libdvd-audio (AUR): https://aur.archlinux.org/packages/libdvd-audio
 - Gap handling (EAC): https://exactaudiocopy.de/gap-technology/

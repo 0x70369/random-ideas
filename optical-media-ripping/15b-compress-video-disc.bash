@@ -2,123 +2,87 @@
 #
 # 15b-compress-video-disc.bash <disc_dir> [destination_dir]
 #
-# Compresses a video disc (movie, TV series) into one .mkv per title,
-# starting from a VIDEO_TS folder already copied to disk (by
-# 15a-backup-video-disc.bash, or any other means) -- never reads the
-# optical drive itself, so a flaky disc or a slow drive only costs you
-# once.
+# Compresses a video disc already copied to disk (a VIDEO_TS folder, e.g.
+# from 15a-backup-video-disc.bash) into one .mkv per title. It never reads
+# the drive, so a flaky disc or a slow drive only costs you once.
 #
-# Re-encodes the VIDEO to x265 (CRF 20, slow preset -- a widely used
-# setting for this kind of archival: a large size reduction from raw DVD
-# MPEG-2 at close to visually transparent quality). Every AUDIO track and
-# every SUBTITLE track is copied byte-for-byte -- they are already small,
-# so there is nothing to gain and real quality to lose by touching them.
-# The only exception: an audio track HandBrake cannot pass through is
-# stored as FLAC, which is lossless. Chapters are kept as proper MKV
-# chapter markers. Cropping is off (--crop 0:0:0:0): automatic black-bar
-# detection can cut real picture in dark scenes, and bars cost almost
-# nothing to encode.
+# The VIDEO is re-encoded to x265 (CRF 20, slow preset: a large size
+# reduction from DVD MPEG-2 at close to transparent quality). Every AUDIO
+# and SUBTITLE track is copied as it is -- they are small, and re-encoding
+# a lossy track (AC-3, DTS, MP2) only loses more. An audio track HandBrake
+# cannot pass through (DVD LPCM) becomes Opus at 256 kbit/s per channel,
+# all its channels kept -- the same ceiling as 14-convert-to-opus.bash
+# (HandBrake caps -B there). Chapters become MKV chapters. No cropping
+# (--crop 0:0:0:0): automatic black-bar detection can cut real picture in
+# dark scenes, and bars cost almost nothing.
 #
-# Handles multi-title discs (e.g. a TV season where each episode is its
-# own title) by letting you pick more than one title in one run, one
-# output file per title.
-#
-# Nothing here deletes the VIDEO_TS backup -- that decision (keep both,
-# or free the space) is yours to make afterwards.
+# Several titles can be picked in one run (e.g. a TV season with one
+# title per episode). The VIDEO_TS backup is never deleted.
 
 set -euo pipefail
 
-# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
-# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
-# a relative $0 would break once the script cd's elsewhere.
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 # shellcheck source=common.bash
-source "$SCRIPT_DIR/common.bash" || exit 1
+source "$SCRIPT_DIR/common.bash" || exit 1   # shared setup and helpers
 
-if [[ $# -lt 1 ]]; then
+if [[ $# -lt 1 || $# -gt 2 ]]; then
     echo "Usage: $0 <disc_dir> [destination_dir]" >&2
     exit 1
 fi
 DISC_DIR="$1"
 DEST="${2:-/temp/video-final}"
-
-command -v HandBrakeCLI >/dev/null 2>&1 || { echo "Error: 'HandBrakeCLI' not found." >&2; exit 1; }
-
-VIDEO_TS_DIR="$(find "$DISC_DIR" -maxdepth 1 -iname VIDEO_TS -type d | head -n1)"
-[[ -n "$VIDEO_TS_DIR" ]] || { echo "Error: no VIDEO_TS folder (any case) found under '$DISC_DIR'." >&2; exit 1; }
-
+need HandBrakeCLI
+[[ -n "$(find "$DISC_DIR" -maxdepth 1 -iname VIDEO_TS -type d \
+    -print -quit)" ]] || die "no VIDEO_TS folder (any case) in '$DISC_DIR'."
 mkdir -pv "$DEST"
 
-# Scans use plain -v (log level 1): higher levels bury the track list you
-# need to read. The encode itself uses level 2.
-echo "=== Scanning all titles in $DISC_DIR ==="
+# Scans use plain -v: higher levels bury the track list. The encode uses 2.
+echo "=== All titles in $DISC_DIR ==="
 HandBrakeCLI -v -i "$DISC_DIR" -t 0 --scan
-echo "=========================================="
 echo
+read_titles "Title number(s) to encode (e.g. '1' or '1 2 3'): "
 
-# Asks until the answer is a whole number (a typo would otherwise only
-# blow up later, inside HandBrake).
-ask_int() {
+# ask_count PROMPT: a whole number (a typo would only fail inside
+# HandBrake, much later).
+ask_count() {
     local answer
-    while :; do
-        read -rp "$1" answer
-        [[ "$answer" =~ ^[0-9]+$ ]] && { echo "$answer"; return; }
-        echo "Please type a number." >&2
-    done
+    until [[ "${answer:-}" =~ ^[0-9]+$ ]]; do read -rp "$1" answer; done
+    echo "$answer"
 }
 
-read -rp "Which title number(s) do you want to encode? (space-separated, e.g. '1' or '1 2 3') " -a TITLES
-[[ "${#TITLES[@]}" -gt 0 ]] || { echo "Error: no title chosen." >&2; exit 1; }
-for TITLE in "${TITLES[@]}"; do
-    [[ "$TITLE" =~ ^[0-9]+$ ]] || { echo "Error: '$TITLE' is not a title number." >&2; exit 1; }
-done
-
 for TITLE in "${TITLES[@]}"; do
     echo
-    echo "--- Title $TITLE ---"
-    echo "=== Scanning title $TITLE (look for its audio and subtitle tracks below) ==="
+    echo "=== Title $TITLE (look for its audio and subtitle tracks) ==="
     HandBrakeCLI -v -i "$DISC_DIR" -t "$TITLE" --scan
-    echo "================================================================================"
     echo
+    AUDIO="$(ask_count "How many audio tracks does it have? ")"
+    SUBS="$(ask_count "How many subtitle tracks (0 if none)? ")"
 
-    NUM_AUDIO="$(ask_int "How many audio tracks does this title have (see above)? ")"
-    NUM_SUB="$(ask_int "How many subtitle tracks does this title have (see above, 0 if none)? ")"
-
-    # Every track is copied untouched. The fallback only kicks in for a
-    # track HandBrake cannot pass through -- FLAC keeps it lossless.
-    if [[ "$NUM_AUDIO" -gt 0 ]]; then
-        AENC_LIST="$(printf 'copy,%.0s' $(seq 1 "$NUM_AUDIO"))"
-        AUDIO_ARGS=(-a "$(seq -s, 1 "$NUM_AUDIO")" -E "${AENC_LIST%,}" --audio-fallback flac24)
-    else
-        AUDIO_ARGS=(-a none)
+    # Every track copied as it is; Opus only for one that cannot be.
+    # -B is ignored for copied tracks, and capped by HandBrake at 256
+    # kbit/s per channel for Opus; its default would be 96 per pair.
+    AUDIO_ARGS=(-a none)
+    if (( AUDIO > 0 )); then
+        ENCODERS=copy RATES=6144
+        for (( i = 1; i < AUDIO; i++ )); do
+            ENCODERS+=,copy RATES+=,6144
+        done
+        AUDIO_ARGS=(-a "$(seq -s, 1 "$AUDIO")" -E "$ENCODERS" -B "$RATES"
+                    --audio-fallback opus)
     fi
-
     SUB_ARGS=()
-    if [[ "$NUM_SUB" -gt 0 ]]; then
-        SUB_ARGS=(-s "$(seq -s, 1 "$NUM_SUB")")
-    fi
+    (( SUBS == 0 )) || SUB_ARGS=(-s "$(seq -s, 1 "$SUBS")")
 
-    read -rp "Output filename for this title (e.g. 'Movie Name (2020).mkv' or 'S01E01 - Title.mkv'): " OUT_NAME
-    [[ -n "$OUT_NAME" ]] || OUT_NAME="title-$TITLE"
-    [[ "$OUT_NAME" != */* ]] || { echo "Error: the file name cannot contain '/'." >&2; exit 1; }
-    [[ "$OUT_NAME" == *.mkv ]] || OUT_NAME="$OUT_NAME.mkv"
-    if [[ -e "$DEST/$OUT_NAME" ]]; then
-        echo "Error: '$DEST/$OUT_NAME' already exists -- not overwriting it." >&2
-        exit 1
-    fi
+    read -rp "Output file (e.g. 'Movie (2020).mkv', 'S01E01 - Title'): " NAME
+    NAME="${NAME:-title-$TITLE}"
+    [[ "$NAME" != */* ]] || die "the file name cannot contain '/'."
+    [[ "$NAME" == *.mkv ]] || NAME+=.mkv
+    [[ ! -e "$DEST/$NAME" ]] || die "'$DEST/$NAME' already exists."
 
-    echo "Encoding title $TITLE -> $DEST/$OUT_NAME ..."
-    HandBrakeCLI \
-        --verbose=2 \
-        -i "$DISC_DIR" \
-        -t "$TITLE" \
-        -o "$DEST/$OUT_NAME" \
-        -e x265 --encoder-preset slow -q 20 \
-        --comb-detect --decomb \
-        --crop 0:0:0:0 \
-        "${AUDIO_ARGS[@]}" \
-        "${SUB_ARGS[@]}" \
-        -m
+    echo "Encoding title $TITLE -> $DEST/$NAME ..."
+    HandBrakeCLI --verbose=2 -i "$DISC_DIR" -t "$TITLE" -o "$DEST/$NAME" \
+        -e x265 --encoder-preset slow -q 20 --comb-detect --decomb \
+        --crop 0:0:0:0 "${AUDIO_ARGS[@]}" "${SUB_ARGS[@]}" -m
 done
 
 echo
