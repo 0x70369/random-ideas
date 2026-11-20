@@ -22,8 +22,8 @@ Each step exists as an independent Bash script (Unix philosophy: one script per 
 
 | Script | Step | Interaction |
 |---|---|---|
-| `10a-install-dependencies.bash` | Check packages (`pacman -T`), install the missing ones | Confirms before installing; AUR packages are only reported |
-| `10b-find-drive-offset.bash [device]` | Find and save the drive's read offset (once per drive) | You type the offset cyanrip found |
+| `10a-install-dependencies.bash` | Install every package, official and AUR, with `yay` | `yay` asks before installing |
+| `10b-find-drive-offset.bash [device]` | Find and save the drive's read offset (once per drive) | None; if detection fails, it prints how to save the offset by hand |
 | `11-identify-media.bash [device]` | Identify the disc | None. Prints one token to stdout (`CD-DA`, `DVD-VIDEO`, `DVD-AUDIO`, `VCD`, `UNKNOWN`) and the next step to stderr |
 | `12a-rip-cd.bash [device] [dest]` | Audio CD → FLAC (cyanrip), extraction only, with a clean/not-clean verdict | None |
 | `12b-rip-dvd-video.bash [device] [dest]` | Live-show DVD → FLAC per chapter | You pick the title(s) and the audio stream |
@@ -35,18 +35,18 @@ Each step exists as an independent Bash script (Unix philosophy: one script per 
 | `15b-compress-video-disc.bash <disc_dir> [dest]` | DVD backup → MKV (x265) | You pick the title(s) and track counts, and name each file |
 
 Common behavior (the shared parts live in `common.bash`, next to the scripts; every script sources it, so a fix there applies to all — keep it with the scripts and the two `.oga` sounds):
-- With no device argument, the scripts try `/dev/sr0`, `/dev/sr1`, `/dev/cdrom`, `/dev/dvd`, `/dev/dvdrw`, `/dev/cdrw`, in that order. With two drives connected, pass the device explicitly.
+- With no device argument, the scripts use `/dev/sr0`. For another drive, pass the device explicitly.
 - Verbose flags are used wherever the tool offers one (`mkdir -v`, `mount -v`, `dvdbackup -v`, `ffmpeg -loglevel verbose`, ...).
 - On exit, `outcome-success.oga` plays on success and `dialog-error.oga` on failure. Both files must sit next to the scripts.
 - **Ctrl+C** (or `kill`) stops the script with an error status, so `dialog-error.oga` plays. Without this, a program that catches Ctrl+C and exits 0 would make bash simply carry on with the next command.
 - The rip scripts refuse to run if the destination still holds audio files from another disc, so two discs never get mixed.
-- A missing program stops the script before it starts, pointing to `10a-install-dependencies.bash`, which says which package (official or AUR) provides it.
+- A missing program stops the script before it starts, pointing to `10a-install-dependencies.bash`.
 - Pressing Enter at a `[Y/n]` question means yes; closing the input (Ctrl+D) means no.
 - Temporary files and mount points are created inside `/temp`. Two exceptions write their temporary file next to the file they replace, then rename it over the original (an atomic replace on the same file system): the HDCD decoding in `14` and the repagination in `17`. A file is therefore never left half-written, even if the script is interrupted.
 - A disc mounted by a script (`11`, `12c`, `15a`) is unmounted on every exit, including errors and Ctrl+C.
-- **Logs:** when run from a terminal (both input and output; with piped input, e.g. `echo y | ...`, the script runs directly), each script re-runs itself under `script` (util-linux), which records everything shown — including prompts and your answers — to `/temp/logs/<script>-<date>.log`. Progress bars keep working because the script still runs in a (pseudo-)terminal. When the output is captured instead (`type=$(./11-identify-media.bash)`), nothing is logged, so the captured token stays clean.
+- **Logs:** the scripts keep none. To record a run, start it under `script` (util-linux): `script -q /temp/rip.log -c ./12a-rip-cd.bash`.
 - **Free space:** `/temp` is RAM. The DVD scripts compare the disc size with the free space first and stop before copying if it would not fit (`12b`, `15a`: disc + 10%; `12c`: 3× the disc, because decoded MLP can be about twice the disc size).
-- **One script per drive:** the scripts that read the drive (`10b`, `11`, `12a`, `12b`, `12c`, `15a`) take an exclusive `flock` on `/temp/locks/<device>.lock` and stop with an error if another one is already using that drive (e.g. `11` while `12a` rips). The lock is released when the script exits.
+- **One script per drive at a time:** nothing enforces it; two programs reading the same drive slow each other down or break the rip.
 - **Eject:** after a successful rip, the disc is ejected (`eject -v`) — a visual "next disc" signal. On failure it stays in, so you can retry. Exception: `12a` ejects once cyanrip has finished, whatever its verdict — a disc that ripped badly has to come out to be cleaned anyway.
 
 **How the scripts are written (for maintenance):**
@@ -60,8 +60,8 @@ Common behavior (the shared parts live in `common.bash`, next to the scripts; ev
   | `die` | Prints an error and stops |
   | `need` | Checks that the required programs exist |
   | `confirm` | Asks a `[Y/n]` question |
-  | `use_device` | Picks the drive, checks it and takes the drive lock |
-  | `drive_model` | Reads the drive's vendor and model |
+  | `use_device` | Picks the drive (default `/dev/sr0`) and checks it |
+  | `read_toc` | Reads the disc mode and the audio/data tracks from the TOC |
   | `set_drive_id` | Builds the drive id and the path of its offset file |
   | `need_disc_space` | Stops if `/temp` cannot hold the disc |
   | `check_dest` | Refuses a destination that already holds another disc's audio |
@@ -91,25 +91,15 @@ esac
 
 ## 0. Required packages (install once)
 
-`10a-install-dependencies.bash` checks each package below with `pacman -T` (deptest) and installs only the missing official ones with `pacman -S --needed`, in two commands: the tools, then — with `--asdeps` — the optional dependencies of another package (`libdvdcss` of `libdvdread`, `chromaprint` of `picard`). The 32-bit versions are included where they exist: `lib32-flac` from `[multilib]` (skipped with a note when `[multilib]` is not enabled), `lib32-libcdio` and `lib32-libdvdcss` from the AUR; no script runs 32-bit code. `lib32-ffmpeg` (a large, often-failing AUR build) and `lib32-chromaprint` (abandoned, fails to build) are left out. Missing AUR packages are listed with the `yay` commands to install them. `-T` is used instead of `-Q` because it accepts any installed package that *provides* the name: with `handbrake-cli-git` or `cyanrip-git` installed, `handbrake-cli`/`cyanrip` count as present instead of being flagged and replaced.
+`10a-install-dependencies.bash` installs everything with `yay`, which handles official and AUR packages alike, in two commands: the tools, then, with `--asdeps`, the optional dependencies of another package (`libdvdcss` of `libdvdread`, `chromaprint` of `picard`). `--needed` skips what is already installed. The 32-bit versions are included where they exist: `lib32-flac` from `[multilib]`, `lib32-libcdio` and `lib32-libdvdcss` from the AUR; no script runs 32-bit code. `lib32-ffmpeg` (a large, often-failing AUR build) and `lib32-chromaprint` (abandoned, fails to build) are left out. A `-git` variant you already have (e.g. `cyanrip-git`) is not recognized by `--needed`: answer no when `yay` offers to replace it.
 
-By hand:
+The same, by hand:
 ```bash
-sudo pacman -S --needed libcdio flac lib32-flac ffmpeg dvdbackup \
-                        lsdvd ogmtools vcdimager picard opus-tools handbrake-cli &&
-sudo pacman -S --needed --asdeps libdvdcss chromaprint
+yay -S --needed libcdio lib32-libcdio flac lib32-flac ffmpeg dvdbackup lsdvd ogmtools vcdimager picard opus-tools handbrake-cli cyanrip rsgain libdvd-audio && yay -S --needed --asdeps libdvdcss lib32-libdvdcss chromaprint
 ```
+`libdvd-audio` is only needed for DVD-Audio discs. If `libdvd-audio` fails (its MLP support is weak and the project has been inactive since 2017), the proprietary, paid alternative is `dvdae-bin` (AUR).
 
-From the AUR, with `yay`:
-```bash
-yay -S --needed cyanrip         # required: audio CD ripping
-yay -S --needed rsgain          # required: R128 normalization tags in step 4
-yay -S --needed libdvd-audio    # only for DVD-Audio discs
-yay -S --needed lib32-libcdio && yay -S --needed --asdeps lib32-libdvdcss
-```
-If `libdvd-audio` fails (its MLP support is weak and the project has been inactive since 2017), the proprietary, paid alternative is `dvdae-bin` (AUR).
-
-`script`, `eject`, `lsblk` and `flock` come from `util-linux`, part of every Arch install. `17` needs `python3`, which is not listed separately: `picard` depends on `python`, so it is installed with it. If you ever remove Picard, install `python` explicitly.
+`eject` and `lsblk` come from `util-linux`, part of every Arch install. `17` needs `python3`, which is not listed separately: `picard` depends on `python`, so it is installed with it. If you ever remove Picard, install `python` explicitly.
 
 ### 0b. Drive read offset (once per drive)
 
@@ -121,14 +111,14 @@ udevadm info --query=property --name=/dev/sr0 | grep '^ID_SERIAL='
 mkdir -pv drive-offsets
 echo 667 > drive-offsets/drive-offset.PIONEER_BD-ROM_BDC-207D_PROLIFICMP000000002-0_0
 ```
-Each drive gets its own file, `drive-offsets/drive-offset.<drive id>`, in a `drive-offsets` folder next to the scripts. The id is the drive's udev `ID_SERIAL` (vendor, model and serial number); characters that are unsafe in file names become `_`. If udev reports no serial, the vendor and model from `/sys/class/block/srN/device/` are used instead.
+Each drive gets its own file, `drive-offsets/drive-offset.<drive id>`, in a `drive-offsets` folder next to the scripts. The id is the drive's udev `ID_SERIAL` (vendor, model and serial number); characters that are unsafe in file names become `_`. If udev reports no serial, the scripts stop.
 
 **If `cyanrip -f` finds no offset** (the disc is not in AccurateRip, or no reference rip matched):
 1. Try 2 or 3 other mainstream commercial CDs — big-label pressings, not CD-Rs or rare releases. Only one disc AccurateRip knows is needed, and nothing is ripped.
-2. Or look up your drive model in the [AccurateRip drive offset list](http://www.accuraterip.com/driveoffsets.htm) or at [daefeatures.co.uk](https://www.daefeatures.co.uk/), and type the value. Search the drive's own vendor/model, which `10b` prints from `/sys/class/block/srN/device/{vendor,model}`: in a USB enclosure, udev's serial may name the USB bridge instead of the drive.
+2. Or look up your drive model in the [AccurateRip drive offset list](http://www.accuraterip.com/driveoffsets.htm) or at [daefeatures.co.uk](https://www.daefeatures.co.uk/), and save the value by hand (`10b` prints the command). Search the drive's own vendor/model, which `10b` prints from `/sys/class/block/srN/device/{vendor,model}`: in a USB enclosure, udev's serial may name the USB bridge instead of the drive.
 3. As a last resort, save `0`: the rips sound exactly the same, AccurateRip just can't confirm them. Rerun `10b` later to replace it.
 
-`10b-find-drive-offset.bash` does all of this: it asks whether to detect the offset or type it, keeps going when detection fails, accepts `+667`-style values as the databases print them, and validates the number. `12a` identifies the drive in use and refuses to run until that drive's offset is saved, telling you the exact `10b` command to run. Plugging in a second drive just means running `10b` once more with it.
+`10b-find-drive-offset.bash` runs `cyanrip -f` and saves what it finds. When detection fails, it prints the drive model to look up and the exact command that saves an offset by hand. `12a` identifies the drive in use and refuses to run until that drive's offset is saved, telling you the exact `10b` command to run. Plugging in a second drive just means running `10b` once more with it.
 
 Only CD audio has a read offset. DVDs are read as plain data, sector by sector, so the DVD scripts don't need one.
 
@@ -343,8 +333,8 @@ rm -v track.flac      # only if the decode was clean and the lengths match
 - `bitrate=$(( channels * 256 ))`: `opusenc`'s help gives 256 kbit/s **per channel** as the ceiling, but `--bitrate` takes the **total** — hence the multiplication (stereo → 512, 5.1 → 1536). Tested: asking for more (mono 510, stereo 1020, 5.1 3060) gives exactly the same average bitrate (about 244, 451 and 1276 kbit/s on full-band noise), because libopus caps the rate internally, so this already is the real ceiling. This is a deliberate choice: above roughly 128–160 kbit/s stereo, Xiph already considers Opus transparent; the extra bitrate buys no proven audible gain.
 - VBR is the default mode and complexity (`--comp`) already defaults to 10 (maximum), so neither is passed. Note `--vbr` is a plain switch: `--vbr on` is rejected and makes `opusenc` print its help screen.
 - No `--discard-comments`/`--discard-pictures`: by default `opusenc` copies the Vorbis comments and the embedded cover from the FLAC — exactly what Picard wrote.
-- **ReplayGain:** `opusenc` converts `REPLAYGAIN_*` tags into the Opus header *output gain*, which every player applies, always (album gain −10 dB → header gain −15 dB, normalized to −23 LUFS). The files would then play at another volume than the CD everywhere. `12a` does not write these tags (`-K`); if any FLAC still has them (e.g. from a Picard plugin), `14` removes them with `metaflac --remove-tag` before converting. Normalization is done afterwards, the Opus way (4b). Check an existing file with `opusinfo file.opus | grep 'Playback gain'`.
-- The channel count is validated: an empty or non-numeric value would become an invalid `--bitrate`.
+- **ReplayGain:** `opusenc` converts `REPLAYGAIN_*` tags into the Opus header *output gain*, which every player applies, always (album gain −10 dB → header gain −15 dB, normalized to −23 LUFS). The files would then play at another volume than the CD everywhere. `12a` does not write these tags (`-K`), and Picard does not by default; `14` does not check for them, so do not enable a ReplayGain plugin in Picard. If it ever happens, `rsgain -o s` in 4b sets the header gain back to 0. Normalization is done afterwards, the Opus way (4b). Check an existing file with `opusinfo file.opus | grep 'Playback gain'`.
+- An empty or non-numeric channel count fails the job's arithmetic, so that file is reported as failed and kept.
 - **Small Ogg pages (`--max-delay`):** by default opusenc puts up to 1 s of audio in each Ogg page (~56 KB at 512 kbit/s). VLC 3 then often cannot find the duration (`--:--`, no seeking; VLC for iOS shows the track as "live" with a stop button): it reads the end of the file in windows starting with 8500 bytes and never sees a complete last page if that page is larger. `14` passes `--max-delay` = 32000 ÷ bitrate in kbit/s (at least 20 ms), which keeps pages around 4 KB (62 ms at 512 kbit/s). The audio is identical; the file grows by about 0.7%. Tested with VLC 3.0.20: opusenc's defaults gave no duration in 7 of 7 files, small pages gave the right one in all. Files made before this: see 4c.
 - **Checked before deleting:** after each encode, two checks must pass, otherwise the Opus is removed and the FLAC stays:
   - The Opus is decoded completely (`ffmpeg -v error -i file.opus -f null -`, which must print nothing).
@@ -395,7 +385,7 @@ rsgain custom -a -s i -c p -o s "/temp/final/Artist/Album - Year"/*.opus
 
 ### 4c. Repairing older Opus files (`17-fix-opus-pages.bash <dir>`)
 
-For Opus files encoded with opusenc's default page size (everything from the older `0x` scripts and from `14` before `--max-delay`). It is lossless: the Opus packets are copied byte for byte and only regrouped into pages of about 4 KB; the header pages (OpusHead, OpusTags with tags and cover) are copied unchanged; the granule positions are recomputed from the packets (RFC 6716 frame sizes) and checked against the original pages, keeping the original end trimming. Before replacing a file it checks: same packets, same final granule, valid CRCs, same duration in `ffprobe`, clean `ffmpeg` decode. The new file is written next to the original (`.XXXXXX.fixtmp`; not `*.opus`, so a leftover from a killed run is never taken as a track), checked, and renamed over it (atomic), keeping permissions and date. If the folder is not writable, the file is reported as failed and left unchanged. Files already with small pages are skipped; unusual files (chained streams, trailing data, mismatching timing) are reported and left untouched. ffmpeg cannot do this remux: it refuses the embedded cover. Tested: decoded audio identical (MD5), tags/cover/R128/pre-skip identical, VLC shows the duration.
+For Opus files encoded with opusenc's default page size (everything from the older `0x` scripts and from `14` before `--max-delay`). It is lossless: the Opus packets are copied byte for byte and only regrouped into pages of about 4 KB; the header pages (OpusHead, OpusTags with tags and cover) are copied unchanged; the granule positions are recomputed from the packets (RFC 6716 frame sizes) and checked against the original pages, keeping the original end trimming. Before replacing a file it checks: same packets, same final granule, valid CRCs, same duration in `ffprobe`, clean `ffmpeg` decode. The new file is written next to the original (`.<name>.fixtmp`; not `*.opus`, so a leftover from a killed run is never taken as a track), checked, and renamed over it (atomic), keeping permissions and date. If the folder is not writable, the file is reported as failed and left unchanged. Files already with small pages are skipped; unusual files (chained streams, trailing data, mismatching timing) are reported and left untouched. ffmpeg cannot do this remux: it refuses the embedded cover. Tested: decoded audio identical (MD5), tags/cover/R128/pre-skip identical, VLC shows the duration.
 
 The VLC bug itself is described in `vlc-bug-report.md`, ready to be filed at https://code.videolan.org/videolan/vlc/-/issues. `vlc-ogg-length-report.bash` collects the data for it (page layout, the length VLC reports, SHA-256 of the decoded audio): `vlc-ogg-length-report.bash -r DIR BAD.opus GOOD.opus` compares a file VLC fails on (A), its copy repaginated by `17` (C; `17` and `common.bash` must sit next to it) and a file it reads fine (B); `--generate DIR` builds a reproducer from pink noise.
 
@@ -504,12 +494,10 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 - HDCD (Hydrogenaudio Wiki): https://wiki.hydrogenaud.io/index.php?title=HDCD
 - FFmpeg hdcd filter: https://ayosec.github.io/ffmpeg-filters-docs/7.0/Filters/Audio/hdcd.html
 - libhdcd (test samples): https://github.com/bp0/libhdcd
-- flock(1): https://www.mankier.com/1/flock
 - opusenc(1) (`--max-delay`): https://opus-codec.org/docs/opus-tools/opusenc.html
 - VLC `Oggseek_ProbeEnd`: https://github.com/videolan/vlc/blob/master/modules/demux/oggseek.c
 - VLC fix "demux: ogg: fix last page probing" (2022): https://mailman.videolan.org/pipermail/vlc-commits/2022-December/067730.html
 - RFC 6716 §3.1 (Opus TOC byte, frame sizes): https://datatracker.ietf.org/doc/html/rfc6716#section-3.1
-- BashFAQ/045 (locking): https://mywiki.wooledge.org/BashFAQ/045
 - Bash manual — shell functions (`export -f`): https://www.gnu.org/software/bash/manual/html_node/Shell-Functions.html
 - xargs(1) (`-r`, exit status 123): https://man.archlinux.org/man/xargs
 - picard (Arch package, depends on `python`): https://archlinux.org/packages/extra/x86_64/picard/
@@ -521,6 +509,7 @@ HandBrakeCLI --verbose=2 -i "/temp/video-backup/Movie Name" -t N \
 - rsgain man page: https://www.mankier.com/1/rsgain
 - ReplayGain (Hydrogenaudio Wiki): https://wiki.hydrogenaudio.org/index.php/ReplayGain
 - script(1) — util-linux: https://www.man7.org/linux/man-pages/man1/script.1.html
+- yay: https://github.com/Jguer/yay
 - eject(1) — util-linux: https://www.man7.org/linux/man-pages/man1/eject.1.html
 - dvdbackup man page: https://man.archlinux.org/man/dvdbackup.1.en
 - lsdvd man page: https://man.archlinux.org/man/lsdvd.1.en.raw

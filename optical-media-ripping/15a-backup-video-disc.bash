@@ -2,124 +2,57 @@
 #
 # 15a-backup-video-disc.bash [device] [destination_dir]
 #
-# Pure, bit-exact backup of a video disc (movie, TV series), nothing
-# re-encoded. Detects the disc format by its folder structure:
-#
-#   DVD-Video (VIDEO_TS)  -> dvdbackup -M: the whole VIDEO_TS structure,
-#                            every title, audio track, subtitle, chapter
-#                            and menu, exactly as authored.
-#   VCD / SVCD (MPEGAV or -> vcdxrip (vcdimager): every MPEG track as a
-#   MPEG2 folder)            .mpg, plus videocd.xml describing the disc
-#                            structure (menus, entry points, playback
-#                            control) -- vcdxbuild can rebuild the disc
-#                            from these two.
-#
-# Why not just copy the VCD's .DAT files: they are stored in a special
-# sector format (Mode 2 Form 2) that a normal file copy reads incorrectly;
-# vcdxrip reads the raw sectors and writes clean MPEG files.
-#
-# The folder name is always asked (default: the disc's volume label):
-# many discs share generic labels like "DVD_VIDEO", and two of them would
-# otherwise be merged into the same folder.
-#
-# Use 15b-compress-video-disc.bash afterwards on a DVD backup if you want
-# a much smaller file. (15b only takes VIDEO_TS; VCD .mpg files are not
-# covered there.)
+# Bit-exact backup of a video disc, nothing re-encoded:
+#   DVD-Video (VIDEO_TS)        dvdbackup -M: the whole disc, menus included
+#   VCD/SVCD (MPEGAV or MPEG2)  vcdxrip: every track as .mpg, plus
+#                               videocd.xml, from which vcdxbuild rebuilds
+#                               the disc. A plain copy of the .DAT files
+#                               would read their Mode 2 Form 2 sectors wrong.
+# The folder name is always asked (default: the volume label), since many
+# discs share labels like "DVD_VIDEO". No sudo: a root-run dvdbackup leaves
+# files your user cannot delete.
 
-set -euo pipefail
-
-# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
-# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
-# a relative $0 would break once the script cd's elsewhere.
-SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 # shellcheck source=common.bash
-source "$SCRIPT_DIR/common.bash" || exit 1
+source -- "$(dirname -- "${BASH_SOURCE[0]}")/common.bash"
 
-MOUNTPOINT=""
-unmount_disc() {
-    [[ -n "$MOUNTPOINT" ]] || return 0
-    sudo umount -v "$MOUNTPOINT"
-    rmdir -v "$MOUNTPOINT"
-    MOUNTPOINT=""
-}
-# Runs on every exit, before the sound (see common.bash).
-# shellcheck disable=SC2329
-cleanup() { unmount_disc; }
+need eject
+use_device "${1:-}"
+dest="${2:-/temp/video-backup}"
 
-DEVICE="${1:-$(detect_device)}"
-DEST="${2:-/temp/video-backup}"
-
-command -v eject >/dev/null 2>&1 || { echo "Error: 'eject' not found." >&2; exit 1; }
-[[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; exit 1; }
-lock_device   # one script per drive at a time (common.bash)
-
-# --- Detect the format --------------------------------------------------
-FORMAT=""
-MOUNTPOINT="$(mktemp -d -p /temp)"
-echo "Mounting $DEVICE at $MOUNTPOINT to inspect its structure..."
-if sudo mount -v -o ro "$DEVICE" "$MOUNTPOINT"; then
-    find_dir() { find "$MOUNTPOINT" -maxdepth 1 -iname "$1" -type d 2>/dev/null | head -n1; }
-    if [[ -n "$(find_dir VIDEO_TS)" ]]; then
-        FORMAT="DVD"
-    elif [[ -n "$(find_dir MPEGAV)" || -n "$(find_dir MPEG2)" ]]; then
-        FORMAT="VCD"
+format=DVD
+mount_disc
+if [[ -n "${MOUNTPOINT}" ]]; then
+    video_ts="$(disc_dir VIDEO_TS)"
+    mpegav="$(disc_dir MPEGAV)"
+    mpeg2="$(disc_dir MPEG2)"
+    if [[ -z "${video_ts}" ]]; then
+        [[ -n "${mpegav}${mpeg2}" ]] ||
+            die "no VIDEO_TS, MPEGAV or MPEG2 folder: not a video disc."
+        format=VCD
     fi
     unmount_disc
 else
-    rmdir -v "$MOUNTPOINT"
-    MOUNTPOINT=""
-    echo "Could not mount (common for DVD-Video without a standard ISO9660 fs). Assuming DVD."
-    FORMAT="DVD"
+    echo "Could not mount the disc; assuming DVD-Video."
 fi
+echo "Format: ${format}"
+if [[ "${format}" == DVD ]]; then need dvdbackup; else need vcdxrip; fi
 
-[[ -n "$FORMAT" ]] || { echo "Error: no VIDEO_TS, MPEGAV or MPEG2 folder found -- not a video disc this script knows." >&2; exit 1; }
-echo "Detected format: $FORMAT"
+label="$(lsblk -no LABEL "${DEVICE}")" || label=""
+read -rp "Folder name for this disc [${label:-${format}}]: " name
+name="${name:-${label:-${format}}}"
+[[ "${name}" != */* ]] || die "the name cannot contain '/'."
+out="${dest}/${name}"
+[[ ! -e "${out}" ]] || die "'${out}' already exists."
+need_disc_space 110
+mkdir -pv -- "${dest}"
 
-if [[ "$FORMAT" == "DVD" ]]; then
-    command -v dvdbackup >/dev/null 2>&1 || { echo "Error: 'dvdbackup' not found." >&2; exit 1; }
+if [[ "${format}" == DVD ]]; then
+    dvdbackup -v -i "${DEVICE}" -M -n "${name}" -o "${dest}"
+    echo "For a smaller copy: ./15b-compress-video-disc.bash '${out}'"
 else
-    command -v vcdxrip >/dev/null 2>&1 || { echo "Error: 'vcdxrip' not found (package 'vcdimager')." >&2; exit 1; }
+    mkdir -pv -- "${out}"
+    cd -- "${out}"
+    vcdxrip --verbose --progress --cdrom-device="${DEVICE}"
 fi
-
-# --- Folder name ---------------------------------------------------------
-LABEL="$( { lsblk -no LABEL "$DEVICE" 2>/dev/null || true; } | head -n1)"
-read -rp "Folder name for this disc [${LABEL:-$FORMAT}]: " NAME
-NAME="${NAME:-${LABEL:-$FORMAT}}"
-[[ "$NAME" != */* ]] || { echo "Error: the name cannot contain '/'." >&2; exit 1; }
-OUT_DIR="$DEST/$NAME"
-if [[ -e "$OUT_DIR" ]]; then
-    echo "Error: '$OUT_DIR' already exists -- pick another name." >&2
-    exit 1
-fi
-DISC_BYTES="$( { lsblk -bdno SIZE "$DEVICE" 2>/dev/null || true; } | head -n1)"
-DISC_BYTES="${DISC_BYTES:-0}"
-if [[ "$DISC_BYTES" -gt 0 ]]; then
-    need_space $(( DISC_BYTES + DISC_BYTES / 10 ))
-else
-    echo "Warning: could not read the disc size; skipping the space check."
-fi
-
-mkdir -pv "$DEST"
-
-# --- DVD-Video -----------------------------------------------------------
-# No sudo: your user already reads the drive (CD ripping works without it),
-# and a root-run dvdbackup leaves root-owned files you can't delete later.
-if [[ "$FORMAT" == "DVD" ]]; then
-    echo "Backing up the whole disc from $DEVICE into $OUT_DIR (this can take a while)..."
-    dvdbackup -v -i "$DEVICE" -M -n "$NAME" -o "$DEST"
-    echo
-    echo "Done. The VIDEO_TS folder is in $OUT_DIR"
-    echo "Pass '$OUT_DIR' to 15b-compress-video-disc.bash if you want a smaller file too."
-    eject -v "$DEVICE"
-    exit 0
-fi
-
-# --- VCD / SVCD ----------------------------------------------------------
-mkdir -pv "$OUT_DIR"
-cd "$OUT_DIR"
-echo "Ripping the Video CD from $DEVICE into $OUT_DIR (this can take a while)..."
-vcdxrip --verbose --progress --cdrom-device="$DEVICE"
-
-echo
-echo "Done. MPEG tracks and videocd.xml are in $OUT_DIR"
-eject -v "$DEVICE"
+eject -v -- "${DEVICE}"
+echo "Done: ${out}"

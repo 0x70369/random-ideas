@@ -1,108 +1,158 @@
-# common.bash -- shared setup for the 1x scripts. Not run on its own: every
-# script sources it right after `set` and SCRIPT_DIR, so a fix made here
-# applies to all of them:
+# shellcheck shell=bash disable=SC2034  # globals read by the scripts
 #
-#   SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
-#   source "$SCRIPT_DIR/common.bash" || exit 1
+# Shared setup and helpers for the optical-media scripts. Sourced, never run:
+#   source -- "$(dirname -- "${BASH_SOURCE[0]}")/common.bash"
 #
-# Provides:
-#   - logging of the whole run to /temp/logs (when run from a terminal);
-#   - success_sound / error_sound, played on exit by status;
-#   - Ctrl+C / kill handling (exit with an error, so the error sound plays);
-#   - an optional cleanup hook: define `cleanup()` in the script and it runs
-#     on every exit, before the sound (its failure never skips the sound);
-#   - detect_device, drive_id, need_space, lock_device.
-#
-# SCRIPT_DIR must be set by the caller: the sounds live next to the scripts.
+# On every exit: unmounts a disc mounted by mount_disc, runs cleanup() if the
+# script defines one, then plays outcome-success.oga or dialog-error.oga.
+# Ctrl+C or kill ends the script with an error status.
 
-# shellcheck shell=bash
+set -euo pipefail
+shopt -s inherit_errexit
 
-# Log the whole run to /temp/logs, but only when input and output are a
-# terminal (piped input, e.g. `echo y | ...`, goes straight to the
-# script): `script` re-runs the calling script inside a pseudo-terminal,
-# so progress bars and prompts keep working and everything is also saved.
-# Sourced without arguments, "$@" here is the calling script's arguments.
-if [[ -t 0 && -t 1 && -z "${DIGITIZE_LOG:-}" ]]; then
-    mkdir -pv /temp/logs >&2
-    DIGITIZE_LOG="/temp/logs/$(basename "$0" .bash)-$(date +%Y%m%d-%H%M%S).log"
-    export DIGITIZE_LOG
-    echo "Logging to $DIGITIZE_LOG" >&2
-    SHELL=/bin/bash exec script -qef -c "$(printf '%q ' bash "$0" "$@")" "$DIGITIZE_LOG"
-fi
+SCRIPT_DIR="$(realpath -- "$(dirname -- "${BASH_SOURCE[0]}")")"
+CORES="$(nproc)"
+DEVICE=""
+MOUNTPOINT=""
+TITLES=()
+AUDIO_TRACKS=()
+DATA_TRACKS=0
+TRACK1_LSN=0
+DISC_MODE=""
+DRIVE_ID=""
+OFFSET_FILE=""
 
-success_sound() { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/outcome-success.oga" >/dev/null 2>&1 || true; }
-error_sound()   { ffplay -nodisp -autoexit -loglevel quiet "$SCRIPT_DIR/dialog-error.oga"    >/dev/null 2>&1 || true; }
+die() {
+    printf 'Error: %s\n' "$*" >&2
+    exit 1
+}
 
-# shellcheck disable=SC2329  # called by the trap
+# need COMMAND...: stops if a program is missing.
+need() {
+    local cmd
+    for cmd in "$@"; do
+        command -v "${cmd}" >/dev/null ||
+            die "'${cmd}' not found; see 10a-install-dependencies.bash."
+    done
+}
+
+# confirm PROMPT: Enter or y goes on; anything else, or Ctrl+D, exits.
+confirm() {
+    local answer
+    read -rp "$1 [Y/n] " answer || answer=n   # read clears it at EOF
+    [[ "${answer}" =~ ^[Yy]?$ ]] || { echo "Cancelled."; exit 0; }
+}
+
+# use_device [DEVICE]: sets DEVICE (default /dev/sr0) and checks it.
+use_device() {
+    DEVICE="${1:-/dev/sr0}"
+    [[ -b "${DEVICE}" ]] || die "'${DEVICE}' is not a block device."
+}
+
+# set_drive_id: DRIVE_ID from udev's ID_SERIAL, made safe as a file name,
+# and OFFSET_FILE, where 10b saves the drive's read offset for 12a.
+set_drive_id() {
+    local props id
+    props="$(udevadm info --query=property --name="${DEVICE}")"
+    id="$(sed -n 's/^ID_SERIAL=//p' <<<"${props}")"
+    [[ -n "${id}" ]] || die "udev reports no serial for ${DEVICE}."
+    id="$(printf '%s' "${id}" | tr -c 'A-Za-z0-9._-' '_' | tr -s '_')"
+    id="${id#_}"
+    DRIVE_ID="${id%_}"
+    OFFSET_FILE="${SCRIPT_DIR}/drive-offsets/drive-offset.${DRIVE_ID}"
+    echo "Drive: ${DRIVE_ID}"
+}
+
+# read_toc: DISC_MODE, AUDIO_TRACKS, DATA_TRACKS and TRACK1_LSN from the
+# disc's TOC. cd-info prints one row per track, e.g.
+#   "  2: 05:22:40 024040 audio false no 2 no"  (number, MSF, LSN, type)
+read_toc() {
+    local toc audio
+    toc="$(cd-info --dvd --no-header --no-device-info "${DEVICE}" \
+        2>/dev/null)" || true
+    DISC_MODE="$(sed -n 's/.*Disc mode is listed as: *//p' <<<"${toc}")"
+    audio="$(awk '$1 ~ /^[0-9]+:$/ && $4 == "audio" {
+        sub(":", "", $1); printf "%s ", $1 }' <<<"${toc}")"
+    read -ra AUDIO_TRACKS <<<"${audio}"
+    DATA_TRACKS="$(awk '$1 ~ /^[0-9]+:$/ && $4 != "audio" &&
+        $4 != "leadout"' <<<"${toc}" | wc -l)"
+    TRACK1_LSN="$(awk '$1 == "1:" { print $3 + 0 }' <<<"${toc}")"
+    TRACK1_LSN="${TRACK1_LSN:-0}"
+}
+
+# check_dest DIR: refuses a folder that holds another disc's audio.
+check_dest() {
+    local found
+    found="$(find "$1" \( -iname '*.wav' -o -iname '*.flac' \) -print \
+        -quit 2>/dev/null)" || true
+    [[ -z "${found}" ]] ||
+        die "'$1' holds audio from another disc; move it or pick a folder."
+}
+
+# need_disc_space PERCENT: stops unless /temp (RAM) has PERCENT % of the
+# disc size free.
+need_disc_space() {
+    local size avail need_bytes need_h avail_h
+    size="$(lsblk -bdno SIZE "${DEVICE}")" ||
+        die "could not read the size of the disc in ${DEVICE}."
+    avail="$(df -B1 --output=avail /temp | tail -n 1)"
+    need_bytes=$(( size * $1 / 100 ))
+    need_h="$(numfmt --to=iec "${need_bytes}")"
+    avail_h="$(numfmt --to=iec "${avail}")"
+    echo "Space: ${need_h} needed, ${avail_h} free in /temp."
+    (( avail >= need_bytes )) || die "not enough free space in /temp."
+}
+
+# mount_disc: mounts the disc read-only at a new MOUNTPOINT in /temp;
+# MOUNTPOINT stays empty if the disc cannot be mounted.
+mount_disc() {
+    MOUNTPOINT="$(mktemp -d -p /temp)"
+    if ! sudo mount -v -o ro -- "${DEVICE}" "${MOUNTPOINT}" >&2; then
+        rmdir -v -- "${MOUNTPOINT}" >&2
+        MOUNTPOINT=""
+    fi
+}
+
+unmount_disc() {
+    [[ -n "${MOUNTPOINT}" ]] || return 0
+    if sudo umount -v -- "${MOUNTPOINT}" >&2; then
+        rmdir -v -- "${MOUNTPOINT}" >&2
+    fi
+    MOUNTPOINT=""
+}
+
+# disc_dir NAME: prints the folder NAME (any case) at the disc's root.
+disc_dir() {
+    find "${MOUNTPOINT}" -maxdepth 1 -iname "$1" -type d -print -quit
+}
+
+# read_titles PROMPT: reads the DVD title numbers into TITLES.
+read_titles() {
+    local title
+    read -rp "$1" -a TITLES
+    (( ${#TITLES[@]} > 0 )) || die "no title chosen."
+    for title in "${TITLES[@]}"; do
+        [[ "${title}" =~ ^[0-9]+$ ]] || die "'${title}' is not a title."
+    done
+}
+
+# each FUNCTION: runs FUNCTION once per NUL-separated item on stdin, one
+# process per core. Exits with 123 (failing the script) if any run failed.
+each() {
+    export -f "${1?}"
+    # shellcheck disable=SC2016  # expanded by the child shell
+    xargs -0 -r -n 1 -P "${CORES}" bash -c \
+        'set -euo pipefail; shopt -s inherit_errexit; "$0" "$1"' "$1"
+}
+
 on_exit() {
-    local rc=$?
-    if declare -F cleanup >/dev/null; then cleanup || true; fi
-    if [[ $rc -eq 0 ]]; then success_sound; else error_sound; fi
+    local status=$? sound=dialog-error
+    unmount_disc
+    if declare -F cleanup >/dev/null; then cleanup; fi
+    (( status != 0 )) || sound=outcome-success
+    ffplay -nodisp -autoexit -loglevel quiet "${SCRIPT_DIR}/${sound}.oga" \
+        >/dev/null 2>&1 || true
 }
 trap on_exit EXIT
-# Ctrl+C / kill: stop with an error status, so the error sound plays --
-# even when the program running at that moment catches the signal and
-# exits 0 (bash would otherwise just carry on with the next command).
 trap 'exit 130' INT
 trap 'exit 143' TERM
-
-# Common paths for an optical drive across distros/setups: /dev/sr0 is the
-# usual raw SCSI/USB name, the rest are symlinks some systems create.
-# shellcheck disable=SC2329  # not every script uses every helper
-detect_device() {
-    local candidate
-    for candidate in /dev/sr0 /dev/sr1 /dev/cdrom /dev/dvd /dev/dvdrw /dev/cdrw; do
-        [[ -b "$candidate" ]] && { echo "$candidate"; return; }
-    done
-    echo "/dev/sr0"
-}
-
-# Identifies the physical drive behind $DEVICE, so each drive gets its own
-# offset file: udev's ID_SERIAL (vendor_model_serial), or vendor + model
-# from sysfs.
-# shellcheck disable=SC2329
-drive_id() {
-    local id sysdev
-    # `|| true`: with pipefail, a failing udevadm/cat would otherwise end
-    # the script right here, silently, before the fallback or the error.
-    id="$( { udevadm info --query=property --name="$DEVICE" 2>/dev/null || true; } | sed -n 's/^ID_SERIAL=//p')"
-    if [[ -z "$id" ]]; then
-        sysdev="/sys/class/block/$(basename "$(readlink -f "$DEVICE")")/device"
-        id="$( { cat "$sysdev/vendor" "$sysdev/model" 2>/dev/null || true; } | xargs)"
-    fi
-    # Safe file name: anything but letters, digits, '.', '_' and '-' becomes '_'.
-    id="$(printf '%s' "$id" | tr -c 'A-Za-z0-9._-' '_' | tr -s '_')"
-    id="${id#_}"
-    echo "${id%_}"
-}
-
-# /temp is a tmpfs (RAM): check the free space up front instead of
-# failing halfway through a multi-GB copy. Argument: bytes needed.
-# shellcheck disable=SC2329
-need_space() {
-    local need=$1 avail
-    avail="$( { df -B1 --output=avail /temp 2>/dev/null || true; } | tail -n1 | tr -d ' ')"
-    [[ "$avail" =~ ^[0-9]+$ ]] || { echo "Error: could not read the free space of /temp." >&2; exit 1; }
-    echo "Space check: about $(numfmt --to=iec "$need") needed, $(numfmt --to=iec "$avail") free in /temp."
-    if (( avail < need )); then
-        echo "Error: not enough free space in /temp -- free some (old backups?) and try again." >&2
-        exit 1
-    fi
-}
-
-# One script per drive at a time: two programs reading the same drive at
-# once (e.g. 11 while 12a rips) slow each other down or break the rip.
-# Takes an exclusive lock for $DEVICE, held until the script exits (fd 9
-# stays open; the child programs inherit it, which is harmless). The lock
-# file lives in /temp/locks and is named after the real device (sr0).
-# shellcheck disable=SC2329
-lock_device() {
-    local lock
-    mkdir -p /temp/locks
-    lock="/temp/locks/$(basename "$(readlink -f "$DEVICE")").lock"
-    exec 9>"$lock"
-    if ! flock -n 9; then
-        echo "Error: another script is using $DEVICE right now -- wait for it to finish." >&2
-        exit 1
-    fi
-}

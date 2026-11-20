@@ -2,139 +2,75 @@
 #
 # 12b-rip-dvd-video.bash [device] [destination_dir]
 #
-# Extracts audio from a live-show DVD-Video into FLAC, one file per
-# chapter. If no device is given, auto-detects among common optical-drive
-# paths (/dev/sr0, /dev/cdrom, etc.) -- passing a path explicitly always
-# works too. Shows the lsdvd listing and lets you pick which title(s) to
-# extract -- including more than one, e.g. when a disc has the full show
-# plus a separate instrumental-only title.
-#
-# How it works, per chosen title:
-#   1. dvdbackup -t copies ONLY that title's sectors into a temp folder in
-#      /temp. Several titles often share one VTS_xx_*.VOB set; copying the
-#      whole set would drag the other titles in, and the chapter times
-#      would no longer line up (the last chapter would run into them).
-#   2. ffprobe lists that copy's audio streams with their stream ids
-#      (0xa0-0xa7 = LPCM, 0x80-0x87 = AC-3, 0x88-0x8f = DTS) and you pick
-#      one BY ID -- the stream order ffmpeg sees is not guaranteed to match
-#      lsdvd's numbering, the id is unambiguous.
-#   3. ffmpeg extracts that stream to one FLAC; dvdxchap's chapter times
-#      cut it into one FLAC per chapter.
-#
-# Why not ffmpeg -f dvdvideo: that demuxer failed to read even the first
-# chapter on one of your discs; lsdvd/dvdxchap/dvdbackup read the same
-# disc structure without that problem.
+# Extracts the audio of a live-show DVD-Video to FLAC, one file per chapter,
+# for the title(s) you pick from the lsdvd listing. Per title:
+#   1. dvdbackup -t copies only that title's sectors to /temp (titles often
+#      share one VOB set; copying it whole would shift the chapter times);
+#   2. you pick the audio stream BY ID (0xa0-0xa7 LPCM, 0x80-0x87 AC-3,
+#      0x88-0x8f DTS): ffmpeg's stream order may not match lsdvd's;
+#   3. ffmpeg extracts it to one FLAC, cut at dvdxchap's chapter times.
+# ffmpeg's dvdvideo demuxer is not used: it failed on one of the discs.
 
-set -euo pipefail
-
-# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
-# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
-# a relative $0 would break once the script cd's elsewhere.
-SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 # shellcheck source=common.bash
-source "$SCRIPT_DIR/common.bash" || exit 1
+source -- "$(dirname -- "${BASH_SOURCE[0]}")/common.bash"
 
-WORK=""
-# Runs on every exit, before the sound (see common.bash).
-# shellcheck disable=SC2329
-cleanup() {
-    if [[ -n "$WORK" && -d "$WORK" ]]; then rm -rfv "$WORK"; fi
-}
+work=""
+cleanup() { [[ -z "${work}" ]] || rm -rf -- "${work}"; }
 
-DEVICE="${1:-$(detect_device)}"
-DEST="${2:-/temp/rip}"
+need lsdvd dvdbackup dvdxchap ffprobe ffmpeg eject
+use_device "${1:-}"
+dest="${2:-/temp/rip}"
+check_dest "${dest}"
+need_disc_space 110
+work="$(mktemp -d -p /temp)"
 
-for cmd in lsdvd dvdbackup dvdxchap ffprobe ffmpeg eject; do
-    command -v "$cmd" >/dev/null 2>&1 || { echo "Error: '$cmd' not found." >&2; exit 1; }
-done
-
-[[ -b "$DEVICE" ]] || { echo "Error: '$DEVICE' is not a block device." >&2; exit 1; }
-lock_device   # one script per drive at a time (common.bash)
-
-# Never mix two discs: output folders are always title-N/NN.flac.
-if [[ -n "$(find "$DEST" \( -iname '*.wav' -o -iname '*.flac' \) -print -quit 2>/dev/null)" ]]; then
-    echo "Error: '$DEST' still has audio files from another disc. Process/move them first, or pass another folder." >&2
-    exit 1
-fi
-
-DISC_BYTES="$( { lsblk -bdno SIZE "$DEVICE" 2>/dev/null || true; } | head -n1)"
-DISC_BYTES="${DISC_BYTES:-0}"
-if [[ "$DISC_BYTES" -gt 0 ]]; then
-    need_space $(( DISC_BYTES + DISC_BYTES / 10 ))
-else
-    echo "Warning: could not read the disc size; skipping the space check."
-fi
-
-WORK="$(mktemp -d -p /temp)"
-
-echo "=== lsdvd listing (titles, chapters, audio streams) ==="
-lsdvd -a "$DEVICE"
-echo "========================================================"
+lsdvd -a "${DEVICE}"
 echo
+read_titles "Title number(s) to extract (e.g. '1' or '1 3'): "
 
-read -rp "Which title number(s) do you want to extract? (space-separated, e.g. '1' or '1 3') " -a TITLES
-[[ "${#TITLES[@]}" -gt 0 ]] || { echo "Error: no title chosen." >&2; exit 1; }
-for TITLE in "${TITLES[@]}"; do
-    [[ "$TITLE" =~ ^[0-9]+$ ]] || { echo "Error: '$TITLE' is not a title number." >&2; exit 1; }
-done
+# VOBs often announce their streams late: probe deeper than the default.
+probe=(-analyzeduration 100M -probesize 100M)
 
-# VOBs often announce streams late; probe deeper than ffmpeg's default.
-PROBE=(-analyzeduration 100M -probesize 100M)
-
-for TITLE in "${TITLES[@]}"; do
+for title in "${TITLES[@]}"; do
     echo
-    echo "--- Title $TITLE ---"
-    echo "Copying only title $TITLE from the disc (this can take a while)..."
-    dvdbackup -v -i "$DEVICE" -t "$TITLE" -n "title-$TITLE" -o "$WORK"
+    echo "=== Title ${title}: copying it from the disc ==="
+    dvdbackup -v -i "${DEVICE}" -t "${title}" -n "title-${title}" \
+        -o "${work}"
+    vobs="$(find "${work}/title-${title}" -iname 'VTS_*_[1-9].VOB' | sort)"
+    [[ -n "${vobs}" ]] || die "dvdbackup copied no VOB for title ${title}."
+    input="concat:$(paste -sd '|' <<<"${vobs}")"
 
-    mapfile -t VOB_FILES < <(find "$WORK/title-$TITLE" -iname 'VTS_*_[1-9].VOB' | sort)
-    [[ "${#VOB_FILES[@]}" -gt 0 ]] || { echo "Error: dvdbackup produced no VOB for title $TITLE." >&2; exit 1; }
-    CONCAT_INPUT="$(printf '%s|' "${VOB_FILES[@]}")"
-    CONCAT_INPUT="concat:${CONCAT_INPUT%|}"
-
-    echo
-    echo "=== Audio streams in title $TITLE (id: 0xa0-0xa7 LPCM, 0x80-0x87 AC-3, 0x88-0x8f DTS) ==="
-    ffprobe -v error "${PROBE[@]}" -select_streams a \
-        -show_entries stream=id,codec_name,channels,sample_rate,bit_rate -of compact=p=0 \
-        "$CONCAT_INPUT"
-    echo "========================================================================================="
-    while :; do
-        read -rp "Stream id to extract (e.g. 0xa0): " STREAM_ID
-        [[ "$STREAM_ID" =~ ^0x[0-9a-fA-F]+$ ]] && break
-        echo "Please type the id exactly as shown above (0x...)." >&2
+    ffprobe -v error "${probe[@]}" -select_streams a -of compact=p=0 \
+        -show_entries stream=id,codec_name,channels,sample_rate,bit_rate \
+        "${input}"
+    id=""
+    until [[ "${id}" =~ ^0x[0-9a-fA-F]+$ ]]; do
+        read -rp "Stream id to extract (e.g. 0xa0): " id
     done
 
-    OUT_DIR="$DEST/title-$TITLE"
-    mkdir -pv "$OUT_DIR"
-    WHOLE="$WORK/title-$TITLE.flac"
+    whole="${work}/title-${title}.flac"
+    ffmpeg -n -loglevel verbose "${probe[@]}" -i "${input}" \
+        -map "0:i:${id}" -vn -c:a flac "${whole}"
 
-    echo "Extracting the whole title as one file..."
-    ffmpeg -n -loglevel verbose "${PROBE[@]}" -i "$CONCAT_INPUT" -map "0:i:$STREAM_ID" -vn -c:a flac "$WHOLE"
+    chapters="$(dvdxchap -t "${title}" "${DEVICE}" |
+        sed -n 's/^CHAPTER[0-9]*=//p')"
+    [[ -n "${chapters}" ]] || die "dvdxchap found no chapters in ${title}."
+    mapfile -t starts <<<"${chapters}"
 
-    echo "Reading chapter timecodes with dvdxchap..."
-    mapfile -t CHAPTER_STARTS < <(dvdxchap -t "$TITLE" "$DEVICE" | grep -oP '^CHAPTER[0-9]+=\K.*')
-    [[ "${#CHAPTER_STARTS[@]}" -gt 0 ]] || { echo "Error: dvdxchap returned no chapters for title $TITLE." >&2; exit 1; }
-
-    echo "Splitting into ${#CHAPTER_STARTS[@]} chapter(s)..."
-    for i in "${!CHAPTER_STARTS[@]}"; do
-        n=$((i + 1))
-        start="${CHAPTER_STARTS[$i]}"
-        if [[ $n -lt "${#CHAPTER_STARTS[@]}" ]]; then
-            end_args=(-to "${CHAPTER_STARTS[$n]}")
-        else
-            end_args=()
-        fi
-        out="$OUT_DIR/$(printf '%02d' "$n").flac"
-        echo "  chapter $n ($start) -> $out"
-        # -ss/-to before -i: sample-exact cuts on the input timeline, so the
-        # chapters join back without a gap or an overlap.
-        ffmpeg -n -loglevel verbose -ss "$start" "${end_args[@]}" -i "$WHOLE" -c:a flac -compression_level 8 "$out"
+    out_dir="${dest}/title-${title}"
+    mkdir -pv -- "${out_dir}"
+    for i in "${!starts[@]}"; do
+        n=$(( i + 1 ))
+        end=()
+        (( n == ${#starts[@]} )) || end=(-to "${starts[n]}")
+        out="${out_dir}/$(printf '%02d' "${n}").flac"
+        # -ss/-to before -i: sample-exact cuts, so the chapters join back
+        # without a gap or an overlap.
+        ffmpeg -n -loglevel verbose -ss "${starts[i]}" "${end[@]}" \
+            -i "${whole}" -c:a flac -compression_level 8 "${out}"
     done
-
-    # Free the tmpfs RAM before the next title.
-    rm -rfv "$WORK/title-$TITLE" "$WHOLE"
+    rm -rfv -- "${work}/title-${title}" "${whole}"   # free the RAM
 done
 
-echo
-echo "Done. Files are in $DEST"
-eject -v "$DEVICE"
+eject -v -- "${DEVICE}"
+echo "Done: ${dest}"

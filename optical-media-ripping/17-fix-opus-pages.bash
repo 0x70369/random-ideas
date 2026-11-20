@@ -2,54 +2,33 @@
 #
 # 17-fix-opus-pages.bash <opus_directory>
 #
-# Repairs Opus files that VLC shows without a duration (--:--, no seeking;
-# VLC for iOS shows them as "live", with a stop button instead of pause).
+# Repairs Opus files that VLC 3 shows without a duration (--:--, no seeking;
+# "live" on iOS): opusenc's default puts up to 1 s of audio in each Ogg
+# page, and VLC never sees a whole last page in the final 8500 bytes it
+# reads. 14 now writes small pages; this fixes files made before that.
 #
-# Cause: opusenc puts up to 1 s of audio in each Ogg page by default
-# (~56 KB at 512 kbit/s). VLC 3 looks for the duration by reading the end
-# of the file in small windows, and when the last page is larger than the
-# first window (8500 bytes) it never sees a complete page there, so the
-# duration stays unknown. 14-convert-to-opus.bash now writes small pages;
-# this script fixes files made before that.
-#
-# The fix is lossless: the Opus packets are copied byte for byte and only
-# regrouped into pages of about 4 KB. The headers (OpusHead, and OpusTags
-# with all tags and the cover) are copied unchanged, page by page; the
-# timing (granule positions) is recomputed from the packets and checked
-# against the original pages, and the original end trimming is kept.
-#
-# Every rewritten file is checked before it replaces the original: same
-# packets, same headers, same final granule, every page CRC valid,
-# ffprobe gives the same duration and ffmpeg decodes it with no error.
-# The original is then replaced atomically (written next to it under a
-# temporary name, then renamed), keeping its permissions and date.
-# Files whose pages are already small are left alone, so it is safe to
-# run again. Anything unusual (chained or multiplexed streams, data after
-# the last page, timing that does not match) is reported and not touched.
+# Lossless: the Opus packets are copied byte for byte into pages of about
+# 4 KB; the header pages (OpusHead, OpusTags with tags and cover) are kept
+# as they are; the granule positions are recomputed and checked against the
+# original pages, end trimming included. Before replacing a file: same
+# packets, same final granule, valid CRCs, same ffprobe duration, clean
+# ffmpeg decode. The new file is written next to the original (not as
+# *.opus) and renamed over it, keeping permissions and date. Files with
+# small pages already are skipped; anything unusual (chained streams, data
+# after the last page, timing that does not match) is reported and left
+# alone.
 
-set -euo pipefail
-
-# Shared setup -- logging to /temp/logs, sounds, Ctrl+C, drive helpers --
-# lives in common.bash, next to the scripts. SCRIPT_DIR is resolved first:
-# a relative $0 would break once the script cd's elsewhere.
-SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 # shellcheck source=common.bash
-source "$SCRIPT_DIR/common.bash" || exit 1
+source -- "$(dirname -- "${BASH_SOURCE[0]}")/common.bash"
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <opus_directory>" >&2
-    exit 1
-fi
-SOURCE="$1"
-[[ -d "$SOURCE" ]] || { echo "Error: directory '$SOURCE' does not exist." >&2; exit 1; }
-for cmd in python3 ffmpeg ffprobe; do
-    command -v "$cmd" >/dev/null 2>&1 || { echo "Error: '$cmd' not found." >&2; exit 1; }
-done
+(( $# == 1 )) || die "usage: $0 <opus_directory>"
+src=$1
+[[ -d "${src}" ]] || die "'${src}' is not a folder."
+need python3 ffmpeg ffprobe
 
-# The repagination itself, in Python (exact byte handling and the Ogg CRC
-# are not practical in bash). Arguments: input file, output file.
-# Exit status: 0 = rewritten to the output file, 3 = pages already small
-# (nothing written), anything else = error (message on stderr).
+# The repagination itself, in Python (byte handling and the Ogg CRC are not
+# practical in Bash). Arguments: input, output. Exit status: 0 = written,
+# 3 = pages already small (nothing written), other = error (on stderr).
 FIX_PY="$(cat <<'PY'
 import sys
 
@@ -274,44 +253,44 @@ PY
 )"
 export FIX_PY
 
-total="$(find "$SOURCE" -type f -iname '*.opus' | wc -l)"
-[[ "$total" -gt 0 ]] || { echo "Error: no Opus files found in '$SOURCE'." >&2; exit 1; }
-echo "Checking $total Opus file(s) in $SOURCE (parallel, $(nproc) cores)..."
+# fix_file FILE: repaginates FILE in place. Prints its output in one block.
+fix_file() {
+    local f=$1 report status=0 before after errors
+    tmp="$(mktemp -p /temp --suffix=.opus)"
+    place="${f%/*}/.${f##*/}.fixtmp"
+    trap 'rm -f -- "${tmp}" "${place}"' EXIT
+    report="$(python3 -I -c "${FIX_PY}" "${f}" "${tmp}" 2>&1)" || status=$?
+    if (( status == 3 )); then
+        echo "=== Already fine: ${f} ==="
+        return 0
+    fi
+    if (( status == 0 )); then
+        before="$(ffprobe -v error -show_entries format=duration \
+            -of csv=p=0 "${f}")"
+        after="$(ffprobe -v error -show_entries format=duration \
+            -of csv=p=0 "${tmp}")"
+        [[ -n "${after}" && "${before}" == "${after}" ]] ||
+            report="duration changed: ${before} -> ${after}" status=1
+    fi
+    if (( status == 0 )); then
+        errors="$(ffmpeg -nostdin -v error -i "${tmp}" -f null - 2>&1)" ||
+            errors+=" (ffmpeg failed)"
+        [[ -z "${errors}" ]] || report="decode errors: ${errors}" status=1
+    fi
+    if (( status != 0 )); then
+        printf '=== Failed (unchanged): %s ===\n%s\n' "${f}" "${report}" >&2
+        exit 1
+    fi
+    # Same file system as the original, so the rename is atomic.
+    cp -- "${tmp}" "${place}"
+    chmod --reference="${f}" -- "${place}"
+    touch -r "${f}" -- "${place}"
+    mv -f -- "${place}" "${f}"
+    printf '=== Fixed: %s ===\n%s, duration %s s\n' "${f}" "${report}" \
+        "${after}"
+}
 
-# One block of output per file, so parallel runs don't interleave. The
-# inner script exits 1 on failure, so xargs reports it (exit 123).
-# shellcheck disable=SC2016  # single quotes on purpose: expanded by the inner bash
-if ! find "$SOURCE" -type f -iname '*.opus' -print0 |
-    xargs -0 -n 1 -P"$(nproc)" bash -c '
-        f="$1"
-        tmp="$(mktemp -p /temp --suffix=.opus)" ||
-            { echo "=== Failed: $f ===" >&2; echo "mktemp failed in /temp" >&2; exit 1; }
-        place="$(dirname -- "$f")/.$(basename -- "$f").fixtmp"
-        trap '\''rm -f -- "$tmp" "$place"; exit 130'\'' INT TERM
-        fail() { echo "=== Failed: $f ===" >&2; echo "$1" >&2; rm -f -- "$tmp" "$place"; exit 1; }
-        rc=0
-        report="$(python3 -I -c "$FIX_PY" "$f" "$tmp" 2>&1)" || rc=$?
-        if [[ "$rc" -eq 3 ]]; then
-            echo "=== Already fine: $f ==="
-            rm -f -- "$tmp"
-            exit 0
-        fi
-        [[ "$rc" -eq 0 ]] || fail "$report"
-        # Independent checks with ffmpeg: same duration, decodes cleanly.
-        before="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f")"
-        after="$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$tmp")"
-        [[ -n "$after" && "$before" == "$after" ]] || fail "duration changed: $before -> $after"
-        errors="$(ffmpeg -nostdin -v error -i "$tmp" -f null - 2>&1)" || fail "decode failed: $errors"
-        [[ -z "$errors" ]] || fail "decode errors: $errors"
-        # Atomic replace: copy next to the original, then rename over it.
-        cp -- "$tmp" "$place" && chmod --reference="$f" -- "$place" &&
-            touch -r "$f" -- "$place" && mv -f -- "$place" "$f" ||
-            fail "could not replace the original (it is unchanged)"
-        rm -f -- "$tmp"
-        echo "=== Fixed: $f ==="
-        echo "$report, duration ${after}s (unchanged)"
-    ' _; then
-    echo "Error: some files could not be fixed (see the 'Failed' blocks above); they were left unchanged." >&2
-    exit 1
-fi
-echo "Done: every Opus file in $SOURCE has small Ogg pages."
+opus="$(find "${src}" -type f -iname '*.opus' -print -quit)"
+[[ -n "${opus}" ]] || die "no Opus files in '${src}'."
+find "${src}" -type f -iname '*.opus' -print0 | each fix_file
+echo "Done: every Opus file in ${src} has small Ogg pages."

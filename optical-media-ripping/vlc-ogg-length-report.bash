@@ -34,15 +34,18 @@
 # VLC refuses to run as root, so run this as a normal user.
 
 set -euo pipefail
+shopt -s inherit_errexit
 
-have() { command -v "$1" >/dev/null 2>&1; }
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
 
 for cmd in vlc ffmpeg python3; do
-    have "$cmd" || { echo "Error: '$cmd' not found." >&2; exit 1; }
+    command -v "${cmd}" >/dev/null || die "'${cmd}' not found."
 done
-if [[ $EUID -eq 0 ]]; then
-    echo "Error: VLC does not run as root; run this as a normal user." >&2
-    exit 1
+if [[ ${EUID} -eq 0 ]]; then
+    die "VLC does not run as root; run this as a normal user."
 fi
 
 # Prints the last Ogg pages of a file; the last line is a summary for the
@@ -72,48 +75,53 @@ print("SUMMARY", pages[-1][1], max(p[1] for p in pages))
 EOF
 }
 
-# The length VLC reports, in seconds, through its rc interface. The rc
-# interface ends its lines with \r, hence the tr.
+# The length VLC reports, in seconds, through its rc interface. It is
+# asked once a second for 10 s and the largest answer kept, so a slow start
+# (VLC answers 0 until it knows the length) is not taken for the bug. The
+# rc interface ends its lines with \r, hence the tr.
 vlc_length() {
-    ( sleep 3; echo get_length; sleep 2; echo quit ) |
-        vlc -I rc --aout=dummy --no-video "$1" 2>/dev/null |
-        tr -d '\r' | sed -n 's/^> \([0-9][0-9]*\)$/\1/p' | head -n 1
+    local i
+    {
+        for (( i = 0; i < 10; i++ )); do
+            sleep 1
+            echo get_length
+        done
+        echo quit
+    } | vlc -I rc --aout=dummy --no-video "$1" 2>/dev/null |
+        tr -d '\r' | sed -n 's/^> \([0-9][0-9]*\)$/\1/p' | sort -n |
+        tail -n 1
 }
 
 repag_dir=""
 if [[ "${1:-}" == -r ]]; then
-    [[ -n "${2:-}" ]] || { echo "Usage: $0 -r DIR FILE.opus..." >&2; exit 1; }
+    [[ -n "${2:-}" ]] || die "usage: $0 -r DIR FILE.opus..."
     repag_dir="$2"
     shift 2
     fix_script="$(dirname -- "$0")/17-fix-opus-pages.bash"
-    if [[ ! -f "$fix_script" ]]; then
-        echo "Error: '$fix_script' not found (keep it next to this script)." >&2
-        exit 1
-    fi
-    mkdir -pv -- "$repag_dir"
+    [[ -f "${fix_script}" ]] ||
+        die "'${fix_script}' not found (keep it next to this script)."
+    mkdir -pv -- "${repag_dir}"
 fi
 
 if [[ "${1:-}" == --generate ]]; then
-    [[ -n "${2:-}" ]] || { echo "Usage: $0 --generate DIR" >&2; exit 1; }
-    have opusenc || { echo "Error: 'opusenc' not found." >&2; exit 1; }
+    [[ -n "${2:-}" ]] || die "usage: $0 --generate DIR"
+    command -v opusenc >/dev/null || die "'opusenc' not found."
     mkdir -pv -- "$2"
     src="$2/noise.flac"
     ffmpeg -nostdin -v error -y -f lavfi \
         -i "anoisesrc=d=253.913:c=pink:a=0.5" \
-        -ac 2 -ar 44100 -sample_fmt s16 "$src"
-    opusenc --quiet --bitrate 512 "$src" "$2/big-pages.opus"
-    opusenc --quiet --bitrate 512 --max-delay 62 "$src" \
+        -ac 2 -ar 44100 -sample_fmt s16 "${src}"
+    opusenc --quiet --bitrate 512 "${src}" "$2/big-pages.opus"
+    opusenc --quiet --bitrate 512 --max-delay 62 "${src}" \
         "$2/small-pages.opus"
-    rm -f -- "$src"
+    rm -f -- "${src}"
     set -- "$2/big-pages.opus" "$2/small-pages.opus"
 fi
 
-if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 [-r DIR] FILE.opus... | [-r DIR] --generate DIR" >&2
-    exit 1
-fi
+(( $# > 0 )) ||
+    die "usage: $0 [-r DIR] FILE.opus... | [-r DIR] --generate DIR"
 for f in "$@"; do
-    [[ -f "$f" ]] || { echo "Error: '$f' is not a file." >&2; exit 1; }
+    [[ -f "${f}" ]] || die "'${f}' is not a file."
 done
 
 # With -r: each file, followed by a repaginated copy if its last page is
@@ -122,17 +130,18 @@ done
 files=()
 copies=0
 for f in "$@"; do
-    files+=("$f")
-    [[ -n "$repag_dir" ]] || continue
-    read -r _ last _ < <(last_pages "$f" | grep '^SUMMARY ')
+    files+=("${f}")
+    [[ -n "${repag_dir}" ]] || continue
+    line="$(last_pages "${f}" | grep '^SUMMARY ')"
+    read -r _ last _ <<<"${line}"
     (( last > 8500 )) || continue
-    copy="$repag_dir/repaginated-$(basename -- "$f")"
-    cp -v -- "$f" "$copy"
-    files+=("$copy")
+    copy="${repag_dir}/repaginated-$(basename -- "${f}")"
+    cp -v -- "${f}" "${copy}"
+    files+=("${copy}")
     copies=$((copies + 1))
 done
 if (( copies > 0 )); then
-    bash "$fix_script" "$repag_dir" </dev/null
+    bash "${fix_script}" "${repag_dir}" </dev/null
 fi
 
 echo "=== Environment"
@@ -142,35 +151,36 @@ fi
 uname -srm
 vlc --version 2>/dev/null | head -n 1
 ffmpeg -version | head -n 1
-if have opusenc; then opusenc --version | head -n 1; fi
-if have pacman; then
+if command -v opusenc >/dev/null; then opusenc --version | head -n 1; fi
+if command -v pacman >/dev/null; then
     pacman -Q vlc libogg opus opus-tools liboggz 2>/dev/null || true
 fi
 
 summary=()
 for f in "${files[@]}"; do
     echo
-    echo "=== $f"
-    if have oggz-validate; then
+    echo "=== ${f}"
+    if command -v oggz-validate >/dev/null; then
         echo "--- oggz-validate (no output = no framing errors)"
-        oggz-validate "$f" || true
+        oggz-validate "${f}" || true
     fi
-    if have oggz-info; then
+    if command -v oggz-info >/dev/null; then
         echo "--- oggz-info -l -g"
-        oggz-info -l -g "$f" || true
+        oggz-info -l -g "${f}" || true
     fi
     echo "--- last Ogg pages"
-    pages="$(last_pages "$f")"
-    grep -v '^SUMMARY ' <<<"$pages"
-    read -r _ last largest < <(grep '^SUMMARY ' <<<"$pages")
+    pages="$(last_pages "${f}")"
+    grep -v '^SUMMARY ' <<<"${pages}"
+    line="$(grep '^SUMMARY ' <<<"${pages}")"
+    read -r _ last largest <<<"${line}"
     echo "--- VLC length (rc get_length, seconds)"
-    length="$(vlc_length "$f")"
+    length="$(vlc_length "${f}")"
     echo "${length:-no answer}"
     echo "--- decoded PCM, sha256"
-    sha="$(ffmpeg -nostdin -v error -i "$f" -f s16le - | sha256sum)"
+    sha="$(ffmpeg -nostdin -v error -i "${f}" -f s16le - | sha256sum)"
     echo "${sha%% *}"
     summary+=("$(printf '%-12s %-14s %-10s %s' "${length:-?}" \
-        "$last" "$largest" "$(basename -- "$f")")")
+        "${last}" "${largest}" "$(basename -- "${f}")")")
 done
 
 echo
