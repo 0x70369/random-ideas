@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/sh
 # Create or update the WPA3 hotspot profile and its encrypted password.
 # Activation is left to the NetworkManager dispatcher script (90-hotspot).
 
@@ -14,42 +14,42 @@ fail() {
     exit 1
 }
 
-[ "$(id -u)" -eq 0 ] || fail 'Run this script as root.'
 
 for tool in nmcli systemd-creds uuidgen chattr; do
-    command -v "$tool" >/dev/null || fail "Missing command: $tool"
+    command -v "${tool}" >/dev/null || fail "Missing command: ${tool}"
 done
 
 nmcli general status >/dev/null || fail 'NetworkManager is not running.'
 
-if [ -L "$CREDENTIAL" ] || { [ -e "$CREDENTIAL" ] && [ ! -f "$CREDENTIAL" ]; }; then
-    fail "Not a regular file: $CREDENTIAL"
+if [ -L "${CREDENTIAL}" ] ||
+    { [ -e "${CREDENTIAL}" ] && [ ! -f "${CREDENTIAL}" ]; }; then
+    fail "Not a regular file: ${CREDENTIAL}"
 fi
 
 # Generate the password once and store it only encrypted. It is written to a
 # temporary file and then moved into place, so an interrupted run never
 # leaves a partial credential behind.
-if [ ! -e "$CREDENTIAL" ]; then
+if [ ! -e "${CREDENTIAL}" ]; then
     mkdir -p "${CREDENTIAL%/*}"
-    tmp=$(mktemp "$CREDENTIAL.XXXXXXXX")
-    trap 'rm -f "$tmp"' 0
+    tmp=$(mktemp "${CREDENTIAL}.XXXXXXXX")
+    trap 'rm -f "${tmp}"' 0
     trap 'exit 1' 1 2 3 15
 
     password=$(uuidgen --random) || fail 'Could not generate a password.'
     # The credential name defaults to the output file name, so pass the final
     # name explicitly; decryption derives it from the file name.
-    printf '802-11-wireless-security.psk:%s\n' "$password" |
-        systemd-creds encrypt --name="${CREDENTIAL##*/}" - "$tmp" ||
+    printf '802-11-wireless-security.psk:%s\n' "${password}" |
+        systemd-creds encrypt --name="${CREDENTIAL##*/}" - "${tmp}" ||
         fail 'Could not encrypt the password.'
     unset password
-    mv "$tmp" "$CREDENTIAL"
+    mv "${tmp}" "${CREDENTIAL}"
 fi
 
-systemd-creds decrypt "$CREDENTIAL" - >/dev/null ||
-    fail "Could not decrypt $CREDENTIAL"
+systemd-creds decrypt "${CREDENTIAL}" - >/dev/null ||
+    fail "Could not decrypt ${CREDENTIAL}"
 
 # Block changes and deletion, even by root, until "chattr -i" is run.
-chattr +i "$CREDENTIAL" ||
+chattr +i "${CREDENTIAL}" ||
     fail 'Could not make the credential immutable (unsupported filesystem?).'
 
 # Set protocol and ciphers explicitly: when unset, wpa_supplicant also offers
@@ -58,7 +58,7 @@ chattr +i "$CREDENTIAL" ||
 # Band and channel stay unset so the driver picks a supported combination.
 # The PSK is never stored (psk-flags 2); the dispatcher supplies it.
 set -- \
-    802-11-wireless.ssid "$SSID" \
+    802-11-wireless.ssid "${SSID}" \
     802-11-wireless.mode ap \
     802-11-wireless.band '' \
     802-11-wireless.channel '' \
@@ -74,14 +74,17 @@ set -- \
     connection.autoconnect no \
     connection.zone nm-shared
 
-if nmcli -g connection.uuid connection show id "$PROFILE" >/dev/null 2>&1; then
-    nmcli connection modify id "$PROFILE" "$@"
+uuid="$(nmcli -g connection.uuid connection show id "${PROFILE}" \
+    2>/dev/null)" || uuid=""
+if [ -n "${uuid}" ]; then
+    nmcli connection modify id "${PROFILE}" "$@"
     printf 'Updated the hotspot profile.\n'
 else
-    nmcli connection add type wifi ifname '*' con-name "$PROFILE" "$@"
+    nmcli connection add type wifi ifname '*' con-name "${PROFILE}" "$@"
+    uuid="$(nmcli -g connection.uuid connection show id "${PROFILE}")"
     printf 'Created the hotspot profile.\n'
 fi
 
-printf 'UUID: %s\n' "$(nmcli -g connection.uuid connection show id "$PROFILE")"
-printf 'Credential: %s (immutable)\n' "$CREDENTIAL"
+printf 'UUID: %s\n' "${uuid}"
+printf 'Credential: %s (immutable)\n' "${CREDENTIAL}"
 printf 'Not activated; the dispatcher handles activation.\n'

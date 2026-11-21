@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/sh
 # Create or update the wired profile for the IMT Nord Europe network.
 # The network has a captive portal: after connecting, open any plain IP
 # address in a browser (e.g. http://1.1.1.1), wait for the redirect to the
@@ -19,7 +19,6 @@ fail() {
     exit 1
 }
 
-[ "$(id -u)" -eq 0 ] || fail 'Run this script as root.'
 command -v nmcli >/dev/null || fail 'Missing command: nmcli'
 nmcli general status >/dev/null || fail 'NetworkManager is not running.'
 
@@ -52,25 +51,28 @@ set -- \
     802-3-ethernet.cloned-mac-address permanent \
     ipv4.method auto \
     ipv4.ignore-auto-dns no \
-    ipv4.dns "$QUAD9_DNS4" \
+    ipv4.dns "${QUAD9_DNS4}" \
     ipv4.dns-priority 0 \
     ipv6.method auto \
     ipv6.ignore-auto-dns no \
-    ipv6.dns "$QUAD9_DNS6" \
+    ipv6.dns "${QUAD9_DNS6}" \
     ipv6.dns-priority 0 \
     connection.dns-over-tls default \
     connection.dnssec default \
     connection.autoconnect no \
     connection.zone work
 
-if nmcli -g connection.uuid connection show id "$PROFILE" >/dev/null 2>&1; then
-    nmcli connection modify id "$PROFILE" "$@"
-    printf 'Updated the profile "%s".\n' "$PROFILE"
+uuid="$(nmcli -g connection.uuid connection show id "${PROFILE}" \
+    2>/dev/null)" || uuid=""
+if [ -n "${uuid}" ]; then
+    nmcli connection modify id "${PROFILE}" "$@"
+    printf 'Updated the profile "%s".\n' "${PROFILE}"
 else
-    nmcli connection add type ethernet ifname '*' con-name "$PROFILE" "$@"
-    printf 'Created the profile "%s".\n' "$PROFILE"
+    nmcli connection add type ethernet ifname '*' con-name "${PROFILE}" "$@"
+    uuid="$(nmcli -g connection.uuid connection show id "${PROFILE}")"
+    printf 'Created the profile "%s".\n' "${PROFILE}"
 fi
 
-printf 'UUID: %s\n' "$(nmcli -g connection.uuid connection show id "$PROFILE")"
+printf 'UUID: %s\n' "${uuid}"
 printf 'Add this UUID to UPSTREAM_UUIDS in 90-hotspot to share this network.\n'
 printf 'If the profile is active, reconnect it to apply the changes.\n'
