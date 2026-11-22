@@ -1,0 +1,10 @@
+# Only the lines changed from the grub package's /etc/default/grub, which
+# grub-mkconfig sources as a shell script.
+## https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html
+
+# The same command line as the UKIs, read from /etc/cmdline.d. Run
+# grub-mkconfig after changing it.
+GRUB_CMDLINE_LINUX_DEFAULT="$(grep -hv '^[[:space:]]*#' /etc/cmdline.d/*.conf | tr -s '[:space:]' ' ')"
+
+## https://github.com/shvchk/fallout-grub-theme
+GRUB_THEME="/boot/grub/themes/fallout-grub-theme/theme.txt"

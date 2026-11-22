@@ -1,0 +1,10 @@
+# mkinitcpio preset for linux-zen: a UKI only, with no initramfs image and no
+# fallback (systemd-boot finds the UKI by itself).
+## https://wiki.archlinux.org/title/Unified_kernel_image#.preset_file
+
+ALL_kver="/boot/vmlinuz-linux-zen"
+
+PRESETS=('default')
+
+default_uki="/boot/EFI/Linux/arch-linux-zen.efi"
+default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"

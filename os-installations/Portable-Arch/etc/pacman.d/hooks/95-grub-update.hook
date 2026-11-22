@@ -11,6 +11,7 @@ Operation = Upgrade
 Operation = Remove
 Target = linux-zen
 Target = linux-lts
+Target = linux
 Target = memtest86+
 
 [Action]
