@@ -3,6 +3,11 @@
 # its default with `umbriel config schema`.
 # Reference: https://docs.noctalia.dev/umbriel/
 
+# The keyboard differs per machine, so it lives in keyboard.toml next to this
+# file. https://docs.noctalia.dev/umbriel/configuration/
+[include]
+files = ["keyboard.toml"]
+
 # ==============================================================================
 # Animations
 # https://docs.noctalia.dev/umbriel/animation/
@@ -130,15 +135,7 @@ window_drag_toggle = "floating"
 
 [input.cursor]
 size = 32
-theme = "Bibata Modern Ice"
-
-[input.keyboard]
-layout = "br"
-model = "abnt2"
-numlock_toggle = true
-options = "terminate:ctrl_alt_bksp"
-repeat_delay = 300
-repeat_rate = 60
+theme = "Bibata-Modern-Ice" # The theme's folder name in /usr/share/icons
 
 [input.touchpad]
 accel_profile = "adaptive"

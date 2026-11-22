@@ -3,6 +3,9 @@ This folder stores my OS configurations for my computers.
 The **Alienware-Arch** is my main computer, therefore it'll be the most detailed.
 It also contains a dedicated installation guide at [my personal ArchWiki page](https://wiki.archlinux.org/title/User:0xMrRobot).
 
+**Common** holds what is the same on every system (shell, desktop, login screen, network, sound...), so I get the same experience on all of them.
+Each system's folder only holds what depends on its hardware, plus its keyboard: install **Common** first, then the system's folder on top of it.
+
 Other setups will "only" have their custom configuration files, unless specified otherwise in their respective folder.
 
 Here are some places where I got inspiration from:

@@ -1,9 +1,9 @@
 # Noctalia Greeter configuration: /var/lib/noctalia-greeter/greeter.toml
 #
-# Values here win over the ones Noctalia's "Sync" writes to sync.toml in the same
-# folder. Colors, wallpaper and font are left to Sync on purpose, so the login
-# screen always follows the shell: Settings > Shell > Security > Noctalia Greeter >
-# Sync Now (or Auto-Sync Greeter).
+# Values here win over the ones Noctalia's "Sync" writes to sync.toml in the
+# same folder. Colors, wallpaper and font are left to Sync on purpose, so the
+# login screen always follows the shell: Settings > Shell > Security >
+# Noctalia Greeter > Sync Now (or Auto-Sync Greeter).
 #
 # Restart greetd after changing this file: systemctl restart greetd.service
 #
@@ -11,8 +11,9 @@
 
 # ==============================================================================
 # Appearance
-# "Synced" uses the palette copied from Noctalia (Dracula). Until the first sync,
-# pick a built-in scheme on the login screen, or set scheme = "Noctalia" here.
+# "Synced" uses the palette copied from Noctalia (Dracula). Until the first
+# sync, pick a built-in scheme on the login screen, or set
+# scheme = "Noctalia" here.
 
 [appearance]
 scheme = "Synced"
@@ -20,11 +21,10 @@ theme_mode = "dark"
 
 # ==============================================================================
 # Clock
-# The same format as the bar: YYYY/mm/dd - weekday, with the time above it.
+# The same format as the bar: YYYY/mm/dd - weekday, with the time (HH:MM, the
+# default) above it.
 
 [clock]
-enabled = true
-time_format = "{:%H:%M}"
 date_format = "%Y/%m/%d - %A"
 time_font_size = 64
 date_font_size = 16
@@ -44,7 +44,6 @@ default = "Umbriel"
 
 [output]
 name = "eDP-1"
-use_synced_settings = true
 
 # Seconds without input before the displays blank; 0 disables it.
 [idle]
@@ -59,8 +58,8 @@ theme = "Bibata-Modern-Ice" # The theme's folder name in /usr/share/icons.
 size = 32
 
 [keyboard]
-layout = "br,gb,fr"
-options = "grp:alt_shift_toggle" # Alt + Shift switches between layouts
+# The greeter has no model setting (abnt2 is set only in Umbriel)
+layout = "br"
 numlock = true
 
 [pointer]

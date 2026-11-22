@@ -1,0 +1,59 @@
+# Noctalia Greeter configuration: /var/lib/noctalia-greeter/greeter.toml
+#
+# Values here win over the ones Noctalia's "Sync" writes to sync.toml in the
+# same folder. Colors, wallpaper and font are left to Sync on purpose, so the
+# login screen always follows the shell: Settings > Shell > Security >
+# Noctalia Greeter > Sync Now (or Auto-Sync Greeter).
+#
+# Restart greetd after changing this file: systemctl restart greetd.service
+#
+# Reference: https://docs.noctalia.dev/greeter/configuration/
+
+# ==============================================================================
+# Appearance
+# "Synced" uses the palette copied from Noctalia (Dracula). Until the first
+# sync, pick a built-in scheme on the login screen, or set
+# scheme = "Noctalia" here.
+
+[appearance]
+scheme = "Synced"
+theme_mode = "dark"
+
+# ==============================================================================
+# Clock
+# The same format as the bar: YYYY/mm/dd - weekday, with the time (HH:MM, the
+# default) above it.
+
+[clock]
+date_format = "%Y/%m/%d - %A"
+time_font_size = 64
+date_font_size = 16
+
+# ==============================================================================
+# Session
+# The name must match a line of `noctalia-greeter sessions` exactly.
+
+[session]
+default = "Umbriel"
+
+# Seconds without input before the displays blank; 0 disables it.
+[idle]
+timeout = 180
+
+# ==============================================================================
+# Input
+# https://docs.noctalia.dev/greeter/input/
+
+[cursor]
+theme = "Bibata-Modern-Ice" # The theme's folder name in /usr/share/icons.
+size = 32
+
+# Brazilian, British and French layouts; Alt + Shift switches between them.
+# Keep them in sync with Umbriel's keyboard.toml.
+[keyboard]
+layout = "br,gb,fr"
+options = "grp:alt_shift_toggle"
+numlock = true
+
+[pointer]
+accel_profile = "adaptive"

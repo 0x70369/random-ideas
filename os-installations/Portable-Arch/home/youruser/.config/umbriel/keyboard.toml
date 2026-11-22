@@ -1,0 +1,9 @@
+# Included by config.toml: Brazilian, British and French layouts; Alt + Shift
+# switches between them. No model: this system boots on any machine. Keep the
+# layouts in sync with the greeter, kmscon and vconsole.conf.
+[input.keyboard]
+layout = "br,gb,fr"
+numlock_toggle = true
+options = "grp:alt_shift_toggle,terminate:ctrl_alt_bksp"
+repeat_delay = 300
+repeat_rate = 60

@@ -1,0 +1,8 @@
+# Included by config.toml: this machine's keyboard (Brazilian ABNT2).
+[input.keyboard]
+layout = "br"
+model = "abnt2"
+numlock_toggle = true
+options = "terminate:ctrl_alt_bksp"
+repeat_delay = 300
+repeat_rate = 60
