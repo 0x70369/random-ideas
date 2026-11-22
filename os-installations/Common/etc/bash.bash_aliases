@@ -102,8 +102,10 @@ alias soft-reboot="systemctl soft-reboot"
 
 # Safety settings
 for cmd in rmdir chmod chown chgrp mount umount; do
-    alias "$cmd"="$cmd -v"
+    # shellcheck disable=SC2139  # meant to expand now, once per command
+    alias "${cmd}"="${cmd} -v"
 done
+unset cmd
 alias mkdir="mkdir -vp"
 alias cp="cp -iv"
 alias mv="mv -iv"
@@ -167,6 +169,7 @@ alias h="history | grep "
 alias check-command="command -V"
 
 # Count all files (recursively) in the current folder
+# shellcheck disable=SC2154  # t is the alias' own loop variable
 alias count-files='for t in f:files l:links d:directories; do printf "%s %s\n" "$(find . -type "${t%%:*}" | wc -l)" "${t#*:}"; done 2>/dev/null'
 
 # Aliases for archives
@@ -187,7 +190,7 @@ alias untar="tar -xf"
 # -----------------------------------------------------
 # Non-root user stuff
 # -----------------------------------------------------
-if [ "$(id -u)" -ne 0 ]; then
+if [[ "${EUID}" -ne 0 ]]; then
     alias root="sudo -i"
 
     if command_exists flatpak; then

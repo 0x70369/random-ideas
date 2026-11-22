@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/bin/bash
 #
 # Shared code of the alienware-* profiles: Dell platform profile, package power limits (RAPL) and
 # Wi-Fi power saving. Sourced by each profile's script, and also run by itself as a transient
@@ -63,6 +63,10 @@
 # https://download.nvidia.com/XFree86/Linux-x86_64/latest/README/dynamicpowermanagement.html
 # https://docs.kernel.org/PCI/sysfs-pci.html
 
+# Most $(cat ...) below read sysfs inside a test or a message; a failed read
+# just shows up as an empty value there.
+# shellcheck disable=SC2312
+
 PLATFORM_PROFILE=/sys/firmware/acpi/platform_profile
 RAPL_DOMAINS="/sys/class/powercap/intel-rapl-mmio:0 /sys/class/powercap/intel-rapl:0"
 UNIT=alienware-power-policy        # unit name prefix and journal identifier
@@ -70,7 +74,7 @@ FIRMWARE_DELAY=16    # seconds between the platform_profile change and the RAPL 
 VERIFY_TIMES="10 20 30"    # seconds after the RAPL writes when they are read back
 WIFI_STATE_DIR=/run/tuned/alienware-wifi
 DGPU=0000:01:00.0          # the dGPU's PCI address (lspci -D)
-DGPU_FUNCTIONS="0000:01:00.1 $DGPU"    # all its functions; the HDMI audio first
+DGPU_FUNCTIONS="0000:01:00.1 ${DGPU}"    # all its functions; the HDMI audio first
 DGPU_UNIT=alienware-dgpu
 RUN_DIR=/run/tuned/alienware       # ids of the latest runs
 DGPU_DELAY=30              # seconds to wait for RTD3 before checking
@@ -86,88 +90,92 @@ SELF=$(readlink -f "${BASH_SOURCE[0]}")
 # Start a transient unit named PREFIX-<id> running this file with ACTION, and record the id as the
 # latest one for PREFIX. usage: start_run PREFIX DESCRIPTION ACTION [ARGS...]
 start_run() {
-    prefix=$1 description=$2 action=$3
+    local prefix=$1 description=$2 action=$3 id
     shift 3
     id=$(date +%s%N)
-    mkdir -p "$RUN_DIR"
-    echo "$id" > "$RUN_DIR/$prefix"
-    systemd-run --quiet --collect --unit="$prefix-$id" --description="$description" \
-        --property=SyslogIdentifier="$prefix" \
-        /usr/bin/bash "$SELF" "$action" "$id" "$@"
+    mkdir -p "${RUN_DIR}"
+    echo "${id}" > "${RUN_DIR}/${prefix}"
+    systemd-run --quiet --collect --unit="${prefix}-${id}" --description="${description}" \
+        --property=SyslogIdentifier="${prefix}" \
+        /usr/bin/bash "${SELF}" "${action}" "${id}" "$@"
 }
 
 # Stop every pending run of PREFIX and invalidate the recorded id
 stop_runs() {
-    echo none > "$RUN_DIR/$1" 2>/dev/null
+    { echo none > "${RUN_DIR}/$1"; } 2>/dev/null
     systemctl stop "$1-*.service" 2>/dev/null
     systemctl reset-failed "$1-*.service" 2>/dev/null
     return 0
 }
 
 # usage: schedule_power_policy PLATFORM_PROFILE PL1_W PL2_W PL4_W PL1_TAU_S
+# (a PL1_TAU_S of 0 keeps the firmware's time window)
 schedule_power_policy() {
     cancel_power_policy
-    start_run "$UNIT" "Alienware platform profile and package power limits" apply "$@"
+    start_run "${UNIT}" "Alienware platform profile and package power limits" apply "$@"
 }
 
 # Stop a pending application (e.g. the previous profile's, still waiting for the firmware)
 cancel_power_policy() {
-    stop_runs "$UNIT"
+    stop_runs "${UNIT}"
 }
 
 # Hand the thermal policy back to the firmware's balanced mode, for when TuneD stops or switches
 # to a profile that is not an alienware-* one
 restore_firmware_policy() {
     cancel_power_policy
-    echo balanced > "$PLATFORM_PROFILE" 2>/dev/null
+    { echo balanced > "${PLATFORM_PROFILE}"; } 2>/dev/null
     return 0
 }
 
 # Check the dGPU in the background, DGPU_DELAY seconds from now (see the header)
 schedule_dgpu_off() {
     cancel_dgpu_off
-    start_run "$DGPU_UNIT" "Alienware dGPU power check" dgpu-off
+    start_run "${DGPU_UNIT}" "Alienware dGPU power check" dgpu-off
 }
 
 cancel_dgpu_off() {
-    stop_runs "$DGPU_UNIT"
+    stop_runs "${DGPU_UNIT}"
 }
 
 # Bring the dGPU back if dgpu_off removed it
 dgpu_restore() {
+    local service
     cancel_dgpu_off
-    [ -e "$DGPU_STATE" ] || return 0
-    echo 1 > "$PCI_RESCAN"
+    [[ -e "${DGPU_STATE}" ]] || return 0
+    echo 1 > "${PCI_RESCAN}"
     # Services that were in use before the removal, saved in the state file. Restart, not start:
     # nvidia-undervolt is a oneshot that may still count as active from its first run.
     while read -r service; do
-        [ -n "$service" ] && systemctl restart --no-block "$service"
-    done < "$DGPU_STATE"
-    rm -f "$DGPU_STATE"
+        [[ -n "${service}" ]] && systemctl restart --no-block "${service}"
+    done < "${DGPU_STATE}"
+    rm -f "${DGPU_STATE}"
     return 0
 }
 
 wifi_powersave_on() {
-    mkdir -p "$WIFI_STATE_DIR"
+    local wireless iface state
+    mkdir -p "${WIFI_STATE_DIR}"
     for wireless in /sys/class/net/*/wireless; do
-        [ -e "$wireless" ] || continue
+        [[ -e "${wireless}" ]] || continue
         iface=${wireless%/wireless}
         iface=${iface##*/}
-        state=$(iw dev "$iface" get power_save 2>/dev/null | awk '{ print $NF }')
+        state=$(iw dev "${iface}" get power_save 2>/dev/null | awk '{ print $NF }')
         # Keep the state saved by an earlier call, so it is the one from before this profile
-        if [ -n "$state" ] && [ ! -e "$WIFI_STATE_DIR/$iface" ]; then
-            echo "$state" > "$WIFI_STATE_DIR/$iface"
+        if [[ -n "${state}" ]] && [[ ! -e "${WIFI_STATE_DIR}/${iface}" ]]; then
+            echo "${state}" > "${WIFI_STATE_DIR}/${iface}"
         fi
-        iw dev "$iface" set power_save on 2>/dev/null
+        iw dev "${iface}" set power_save on 2>/dev/null
     done
     return 0
 }
 
 wifi_powersave_restore() {
-    for file in "$WIFI_STATE_DIR"/*; do
-        [ -e "$file" ] || continue
-        iw dev "${file##*/}" set power_save "$(cat "$file")" 2>/dev/null
-        rm -f "$file"
+    local file
+    for file in "${WIFI_STATE_DIR}"/*; do
+        [[ -e "${file}" ]] || continue
+        iw dev "${file##*/}" set power_save "$(cat "${file}")" 2>/dev/null
+        rm -f "${file}"
     done
     return 0
 }
@@ -179,7 +187,7 @@ wifi_powersave_restore() {
 
 # True while this run (id in $run_id) is still the latest one for its prefix
 still_current() {
-    [ "$(cat "$RUN_DIR/$run_prefix" 2>/dev/null)" = "$run_id" ]
+    [[ "$(cat "${RUN_DIR}/${run_prefix}" 2>/dev/null)" = "${run_id}" ]]
 }
 
 # Exit quietly if a newer profile switch replaced this run
@@ -199,20 +207,21 @@ write_value() {
 # Write PL1/PL2/PL4 (in µW, indexed like the constraints) and the PL1 time window to one domain
 write_limits() {
     domain=$1
-    if [ ! -d "$domain" ]; then
-        echo "<4>$domain not found, skipped"
+    if [[ ! -d "${domain}" ]]; then
+        echo "<4>${domain} not found, skipped"
         return
     fi
     # Raise from the top down, then lower from the bottom up
     for i in 2 1 0; do
-        file="$domain/constraint_${i}_power_limit_uw"
-        [ -e "$file" ] && [ "${limits[i]}" -gt "$(cat "$file")" ] && write_value "$file" "${limits[i]}"
+        file="${domain}/constraint_${i}_power_limit_uw"
+        [[ -e "${file}" ]] && [[ "${limits[i]}" -gt "$(cat "${file}")" ]] && write_value "${file}" "${limits[i]}"
     done
     for i in 0 1 2; do
-        file="$domain/constraint_${i}_power_limit_uw"
-        [ -e "$file" ] && [ "${limits[i]}" -lt "$(cat "$file")" ] && write_value "$file" "${limits[i]}"
+        file="${domain}/constraint_${i}_power_limit_uw"
+        [[ -e "${file}" ]] && [[ "${limits[i]}" -lt "$(cat "${file}")" ]] && write_value "${file}" "${limits[i]}"
     done
-    write_value "$domain/constraint_0_time_window_us" "$tau"
+    # A Tau of 0 keeps the firmware's time window
+    [[ "${tau}" -eq 0 ]] || write_value "${domain}/constraint_0_time_window_us" "${tau}"
 }
 
 # True if the effective limits are the requested ones. The CPU applies the lower of the MMIO and
@@ -224,30 +233,30 @@ limits_hold() {
     ok=0
     for i in 0 1 2; do
         effective=""
-        for domain in $RAPL_DOMAINS; do
-            file="$domain/constraint_${i}_power_limit_uw"
-            [ -e "$file" ] || continue
-            current=$(cat "$file")
-            if [ -z "$effective" ] || [ "$current" -lt "$effective" ]; then
-                effective=$current
+        for domain in ${RAPL_DOMAINS}; do
+            file="${domain}/constraint_${i}_power_limit_uw"
+            [[ -e "${file}" ]] || continue
+            current=$(cat "${file}")
+            if [[ -z "${effective}" ]] || [[ "${current}" -lt "${effective}" ]]; then
+                effective=${current}
             fi
-            if [ "$current" != "${limits[i]}" ]; then
-                case " $noted " in
-                    *" $file=$current "*) ;;
+            if [[ "${current}" != "${limits[i]}" ]]; then
+                case " ${noted} " in
+                    *" ${file}=${current} "*) ;;
                     *)
-                        echo "<6>$file is $current, expected ${limits[i]}"
-                        noted="$noted $file=$current"
+                        echo "<6>${file} is ${current}, expected ${limits[i]}"
+                        noted="${noted} ${file}=${current}"
                         ;;
                 esac
             fi
         done
-        [ -n "$effective" ] || continue
-        if [ "$effective" != "${limits[i]}" ]; then
-            echo "<4>The effective constraint_$i limit is $effective, expected ${limits[i]}"
+        [[ -n "${effective}" ]] || continue
+        if [[ "${effective}" != "${limits[i]}" ]]; then
+            echo "<4>The effective constraint_${i} limit is ${effective}, expected ${limits[i]}"
             ok=1
         fi
     done
-    return "$ok"
+    return "${ok}"
 }
 
 apply_policy() {
@@ -256,35 +265,35 @@ apply_policy() {
     tau=$(( $5 * 1000000 ))
 
     exit_if_replaced
-    write_value "$PLATFORM_PROFILE" "$profile"
-    sleep "$FIRMWARE_DELAY"
+    write_value "${PLATFORM_PROFILE}" "${profile}"
+    sleep "${FIRMWARE_DELAY}"
 
     exit_if_replaced
-    for domain in $RAPL_DOMAINS; do
-        write_limits "$domain"
+    for domain in ${RAPL_DOMAINS}; do
+        write_limits "${domain}"
     done
 
     # Read the limits back at each of VERIFY_TIMES, counted from the first write
     noted=""
     elapsed=0
     rewrites=0
-    for at in $VERIFY_TIMES; do
+    for at in ${VERIFY_TIMES}; do
         sleep $(( at - elapsed ))
-        elapsed=$at
+        elapsed=${at}
         exit_if_replaced
         if ! limits_hold; then
             echo "<4>The limits changed ${at} s after being written (EC?); writing them again"
-            for domain in $RAPL_DOMAINS; do
-                write_limits "$domain"
+            for domain in ${RAPL_DOMAINS}; do
+                write_limits "${domain}"
             done
             rewrites=$(( rewrites + 1 ))
         fi
     done
 
-    if [ "$rewrites" -eq 0 ]; then
-        echo "<6>Applied platform profile $profile, PL1 $2 W (Tau $5 s), PL2 $3 W, PL4 $4 W"
+    if [[ "${rewrites}" -eq 0 ]]; then
+        echo "<6>Applied platform profile ${profile}, PL1 $2 W (Tau $5 s), PL2 $3 W, PL4 $4 W"
     else
-        echo "<4>Applied platform profile $profile, PL1 $2 W (Tau $5 s), PL2 $3 W, PL4 $4 W, after rewriting the limits $rewrites time(s)"
+        echo "<4>Applied platform profile ${profile}, PL1 $2 W (Tau $5 s), PL2 $3 W, PL4 $4 W, after rewriting the limits ${rewrites} time(s)"
     fi
 }
 
@@ -293,41 +302,41 @@ apply_policy() {
 dgpu_users() {
     tests=()
     for path in "$@"; do
-        tests+=(-o -lname "$path")
+        tests+=(-o -lname "${path}")
     done
     # "${tests[@]:1}" drops the leading -o
     find /proc/[0-9]*/fd -maxdepth 1 -type l \( "${tests[@]:1}" \) -printf '%h\n' 2>/dev/null |
     while read -r fd_dir; do
         pid=${fd_dir#/proc/}
         pid=${pid%%/*}
-        name=$(cat "/proc/$pid/comm" 2>/dev/null)
-        [ "$name" = nvidia-persistenced ] || echo "$pid $name"
+        name=$(cat "/proc/${pid}/comm" 2>/dev/null)
+        [[ "${name}" = nvidia-persistenced ]] || echo "${pid} ${name}"
     done | sort -u
 }
 
 dgpu_off() {
-    dev=$PCI_DEVICES/$DGPU
-    if [ ! -e "$dev" ]; then
-        echo "<6>The dGPU ($DGPU) is not on the PCI bus; nothing to do"
+    dev=${PCI_DEVICES}/${DGPU}
+    if [[ ! -e "${dev}" ]]; then
+        echo "<6>The dGPU (${DGPU}) is not on the PCI bus; nothing to do"
         return
     fi
 
-    sleep "$DGPU_DELAY"
+    sleep "${DGPU_DELAY}"
     exit_if_replaced
 
-    status=$(cat "$dev/power/runtime_status")
-    if [ "$status" = suspended ]; then
+    status=$(cat "${dev}/power/runtime_status")
+    if [[ "${status}" = suspended ]]; then
         echo "<6>The dGPU is powered off by RTD3; nothing to do"
         return
     fi
-    echo "<4>The dGPU is still $status after $DGPU_DELAY s"
-    for function in $DGPU_FUNCTIONS; do
-        [ -e "$PCI_DEVICES/$function" ] || continue
-        echo "<6>  $function: runtime_status $(cat "$PCI_DEVICES/$function/power/runtime_status"), control $(cat "$PCI_DEVICES/$function/power/control")"
+    echo "<4>The dGPU is still ${status} after ${DGPU_DELAY} s"
+    for fn in ${DGPU_FUNCTIONS}; do
+        [[ -e "${PCI_DEVICES}/${fn}" ]] || continue
+        echo "<6>  ${fn}: runtime_status $(cat "${PCI_DEVICES}/${fn}/power/runtime_status"), control $(cat "${PCI_DEVICES}/${fn}/power/control")"
     done
 
-    driver=$(basename "$(readlink "$dev/driver" 2>/dev/null)")
-    if [ "$driver" != nvidia ]; then
+    driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)")
+    if [[ "${driver}" != nvidia ]]; then
         echo "<4>Not removing it: bound to ${driver:-no driver}, not nvidia"
         return
     fi
@@ -335,15 +344,16 @@ dgpu_off() {
     # Its DRM nodes (/dev/dri/cardN, /dev/dri/renderDN) and connected outputs
     render_nodes=""
     card_nodes=""
-    for node in "$dev"/drm/*; do
-        [ -e "$node" ] || continue
+    for node in "${dev}"/drm/*; do
+        [[ -e "${node}" ]] || continue
         case "${node##*/}" in
-            renderD*) render_nodes="$render_nodes /dev/dri/${node##*/}" ;;
-            card*) card_nodes="$card_nodes /dev/dri/${node##*/}" ;;
+            renderD*) render_nodes="${render_nodes} /dev/dri/${node##*/}" ;;
+            card*) card_nodes="${card_nodes} /dev/dri/${node##*/}" ;;
+            *) ;;
         esac
-        for output in "$node"/"${node##*/}"-*; do
-            [ -e "$output/status" ] || continue
-            if [ "$(cat "$output/status")" = connected ]; then
+        for output in "${node}"/"${node##*/}"-*; do
+            [[ -e "${output}/status" ]] || continue
+            if [[ "$(cat "${output}/status")" = connected ]]; then
                 echo "<4>Not removing it: a display is connected to ${output##*/}"
                 return
             fi
@@ -351,66 +361,66 @@ dgpu_off() {
     done
 
     # shellcheck disable=SC2086  # the node lists are paths without spaces
-    users=$(dgpu_users /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia[0-9]* $render_nodes)
-    if [ -n "$users" ]; then
+    users=$(dgpu_users /dev/nvidiactl /dev/nvidia-modeset /dev/nvidia-uvm /dev/nvidia[0-9]* ${render_nodes})
+    if [[ -n "${users}" ]]; then
         echo "<4>Not removing it: in use by these processes (PID name):"
-        printf '%s\n' "$users" | sed 's/^/<4>  /'
+        printf '%s\n' "${users}" | sed 's/^/<4>  /'
         return
     fi
-    if [ -n "$card_nodes" ]; then
+    if [[ -n "${card_nodes}" ]]; then
         # shellcheck disable=SC2086
-        watchers=$(dgpu_users $card_nodes)
-        if [ -n "$watchers" ]; then
+        watchers=$(dgpu_users ${card_nodes})
+        if [[ -n "${watchers}" ]]; then
             echo "<6>Its card node is open (not blocking) in these processes (PID name):"
-            printf '%s\n' "$watchers" | sed 's/^/<6>  /'
+            printf '%s\n' "${watchers}" | sed 's/^/<6>  /'
         fi
     fi
 
     # The PCI bridge above it, whose power state shows whether the dGPU is really off afterwards
-    bridge=$(basename "$(dirname "$(readlink -f "$dev")")")
+    bridge=$(basename "$(dirname "$(readlink -f "${dev}")")")
 
     # Last check before changing anything
     exit_if_replaced
 
     # Remember which services to start again when the dGPU comes back
-    : > "$DGPU_STATE"
+    : > "${DGPU_STATE}"
     for service in nvidia-persistenced.service nvidia-undervolt.service; do
-        if systemctl is-active --quiet "$service" || systemctl is-enabled --quiet "$service" 2>/dev/null; then
-            echo "$service" >> "$DGPU_STATE"
+        if systemctl is-active --quiet "${service}" || systemctl is-enabled --quiet "${service}" 2>/dev/null; then
+            echo "${service}" >> "${DGPU_STATE}"
         fi
     done
     systemctl stop nvidia-persistenced.service 2>/dev/null
 
-    for function in $DGPU_FUNCTIONS; do
-        [ -e "$PCI_DEVICES/$function/remove" ] && echo 1 > "$PCI_DEVICES/$function/remove"
+    for fn in ${DGPU_FUNCTIONS}; do
+        [[ -e "${PCI_DEVICES}/${fn}/remove" ]] && echo 1 > "${PCI_DEVICES}/${fn}/remove"
     done
 
-    if [ -e "$dev" ]; then
+    if [[ -e "${dev}" ]]; then
         echo "<3>The dGPU is still on the PCI bus after the removal; starting its services again"
         while read -r service; do
-            [ -n "$service" ] && systemctl restart --no-block "$service"
-        done < "$DGPU_STATE"
-        rm -f "$DGPU_STATE"
+            [[ -n "${service}" ]] && systemctl restart --no-block "${service}"
+        done < "${DGPU_STATE}"
+        rm -f "${DGPU_STATE}"
         return
     fi
     echo "<6>Removed the dGPU from the PCI bus; it comes back when leaving the profile"
     sleep 5
-    if [ -e "$PCI_DEVICES/$bridge/power/runtime_status" ]; then
-        echo "<6>PCI bridge $bridge: runtime_status $(cat "$PCI_DEVICES/$bridge/power/runtime_status")"
+    if [[ -e "${PCI_DEVICES}/${bridge}/power/runtime_status" ]]; then
+        echo "<6>PCI bridge ${bridge}: runtime_status $(cat "${PCI_DEVICES}/${bridge}/power/runtime_status")"
     fi
 }
 
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
     case "${1:-}" in
         apply)
-            [ "$#" -eq 7 ] || { echo "usage: $0 apply ID PLATFORM_PROFILE PL1_W PL2_W PL4_W PL1_TAU_S" >&2; exit 2; }
-            run_prefix=$UNIT run_id=$2
+            [[ "$#" -eq 7 ]] || { echo "usage: $0 apply ID PLATFORM_PROFILE PL1_W PL2_W PL4_W PL1_TAU_S" >&2; exit 2; }
+            run_prefix=${UNIT} run_id=$2
             shift 2
             apply_policy "$@"
             ;;
         dgpu-off)
-            [ "$#" -eq 2 ] || { echo "usage: $0 dgpu-off ID" >&2; exit 2; }
-            run_prefix=$DGPU_UNIT run_id=$2
+            [[ "$#" -eq 2 ]] || { echo "usage: $0 dgpu-off ID" >&2; exit 2; }
+            run_prefix=${DGPU_UNIT} run_id=$2
             dgpu_off
             ;;
         *)

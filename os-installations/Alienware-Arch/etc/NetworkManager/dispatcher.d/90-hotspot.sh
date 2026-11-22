@@ -1,13 +1,16 @@
-#!/bin/env sh
-# /etc/NetworkManager/dispatcher.d/90-hotspot
+#!/bin/sh
+# /etc/NetworkManager/dispatcher.d/90-hotspot.sh
 #
 # Keep a WPA3 hotspot up while at least one authorized upstream connection is
 # active, and take it down when the last one disconnects. On activation, show
 # a QR code with the Wi-Fi credentials in the active local Wayland session.
 #
-# Install as root:root, mode 1755. Requires nmcli, systemd-creds and flock;
+# Install as root:root, mode 0755. Requires nmcli, systemd-creds and flock;
 # the QR code additionally needs qrencode and imv (both optional).
 
+# Functions are used as conditions on purpose (set -e doesn't apply there),
+# and command substitutions only feed tests and messages.
+# shellcheck disable=SC2310,SC2312
 set -eu
 umask 077
 # The dispatcher runs scripts with a minimal environment.
@@ -33,20 +36,20 @@ log() {
 }
 
 is_upstream() {
-    for uuid in $UPSTREAM_UUIDS; do
-        [ "$uuid" = "$1" ] && return 0
+    for uuid in ${UPSTREAM_UUIDS}; do
+        [ "${uuid}" = "$1" ] && return 0
     done
     return 1
 }
 
 # Compare whole UUIDs, never connection names or substrings.
 is_active() {
-    printf '%s\n' "$active_uuids" | grep -Fxq -- "$1"
+    printf '%s\n' "${active_uuids}" | grep -Fxq -- "$1"
 }
 
 any_upstream_active() {
-    for uuid in $UPSTREAM_UUIDS; do
-        is_active "$uuid" && return 0
+    for uuid in ${UPSTREAM_UUIDS}; do
+        is_active "${uuid}" && return 0
     done
     return 1
 }
@@ -70,20 +73,20 @@ session_prop() {
 # Print "user uid" for the active, local, non-root Wayland session, if any.
 find_graphical_user() {
     for session in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
-        [ "$(session_prop "$session" Active)" = yes ] || continue
-        [ "$(session_prop "$session" Type)" = wayland ] || continue
-        [ "$(session_prop "$session" Remote)" = no ] || continue
-        uid=$(session_prop "$session" User) || continue
-        [ "$uid" -gt 0 ] 2>/dev/null && [ -d "/run/user/$uid" ] || continue
-        name=$(session_prop "$session" Name) || continue
-        printf '%s %s\n' "$name" "$uid"
+        [ "$(session_prop "${session}" Active)" = yes ] || continue
+        [ "$(session_prop "${session}" Type)" = wayland ] || continue
+        [ "$(session_prop "${session}" Remote)" = no ] || continue
+        uid=$(session_prop "${session}" User) || continue
+        [ "${uid}" -gt 0 ] 2>/dev/null && [ -d "/run/user/${uid}" ] || continue
+        name=$(session_prop "${session}" Name) || continue
+        printf '%s %s\n' "${name}" "${uid}"
         return 0
     done
     return 1
 }
 
 stop_qr() {
-    systemctl --user --machine="$1@.host" stop "$QR_UNIT" 2>/dev/null || :
+    systemctl --user --machine="$1@.host" stop "${QR_UNIT}" 2>/dev/null || :
 }
 
 # Show the QR code for a limited time in the user's session. Runs in a
@@ -99,33 +102,34 @@ show_qr() (
     uid=${graphical#* }
 
     IFS= read -r line < "$1" || exit 1
-    case $line in
+    case ${line} in
         802-11-wireless-security.psk:?*) password=${line#*:} ;;
         *) log 'Unexpected hotspot credential format.'; exit 1 ;;
     esac
     # Without --escape no, nmcli would backslash-escape ':' and '\' itself.
-    ssid=$(nmcli --escape no -g 802-11-wireless.ssid connection show uuid "$HOTSPOT_UUID") || exit 1
+    ssid=$(nmcli --escape no -g 802-11-wireless.ssid connection show uuid "${HOTSPOT_UUID}") || exit 1
 
     # Render into a root-owned directory; root never writes into the user's.
     qr_file=$(mktemp /run/alienware-hotspot-qr.XXXXXXXX) || exit 1
-    trap 'rm -vf "$qr_file"' 0
+    trap 'rm -f "${qr_file}"' 0
     trap 'exit 1' 1 2 3 15
 
     # Wi-Fi Alliance format: T:WPA covers WPA2 and WPA3-Personal, and R:1
     # (transition disable) tells the client this network is WPA3-only.
-    printf 'WIFI:T:WPA;R:1;S:%s;P:%s;;' "$(qr_escape "$ssid")" "$(qr_escape "$password")" |
-        qrencode -s 8 -m 2 -o "$qr_file" || exit 1
-    chown "$uid" "$qr_file" || exit 1
+    printf 'WIFI:T:WPA;R:1;S:%s;P:%s;;' "$(qr_escape "${ssid}")" "$(qr_escape "${password}")" |
+        qrencode -s 8 -m 2 -o "${qr_file}" || exit 1
+    chown "${uid}" "${qr_file}" || exit 1
 
     # imv runs as the user and reads the image from stdin. With Type=exec,
     # systemd-run returns only after the file was opened, so the trap can
-    # delete it right away; RuntimeMaxSec closes the viewer automatically.
+    # delete it right away. timeout closes the viewer; its exit status (124)
+    # counts as success, so the unit doesn't end as failed.
     # The user manager needs WAYLAND_DISPLAY in its environment, e.g. via
     # "systemctl --user import-environment WAYLAND_DISPLAY" at session start.
-    stop_qr "$user"
-    systemd-run --user --machine="$user@.host" --quiet --collect \
-        --unit="$QR_UNIT" -p Type=exec -p RuntimeMaxSec="$QR_SECONDS" \
-        -p StandardInput=file:"$qr_file" imv -
+    stop_qr "${user}"
+    systemd-run --user --machine="${user}@.host" --quiet --collect \
+        --unit="${QR_UNIT}" -p Type=exec -p SuccessExitStatus=124 \
+        -p StandardInput=file:"${qr_file}" timeout "${QR_SECONDS}" imv -
 )
 
 # Bring the hotspot in line with the current state of the upstreams (any
@@ -139,26 +143,26 @@ reconcile() {
         if graphical=$(find_graphical_user); then
             stop_qr "${graphical% *}"
         fi
-        if is_active "$HOTSPOT_UUID"; then
-            nmcli -w 15 connection down uuid "$HOTSPOT_UUID"
+        if is_active "${HOTSPOT_UUID}"; then
+            nmcli -w 15 connection down uuid "${HOTSPOT_UUID}"
         fi
         return 0
     fi
 
-    is_active "$HOTSPOT_UUID" && return 0
+    is_active "${HOTSPOT_UUID}" && return 0
 
     secret_file=$(mktemp /run/alienware-hotspot.XXXXXXXX) || return 1
-    trap 'rm -f "$secret_file"' 0
+    trap 'rm -f "${secret_file}"' 0
     trap 'exit 1' 1 2 3 15
-    systemd-creds decrypt "$CREDENTIAL" "$secret_file" || {
+    systemd-creds decrypt "${CREDENTIAL}" "${secret_file}" || {
         log 'Could not decrypt the hotspot credential.'
         return 1
     }
-    nmcli -w 60 connection up uuid "$HOTSPOT_UUID" passwd-file "$secret_file" || {
+    nmcli -w 60 connection up uuid "${HOTSPOT_UUID}" passwd-file "${secret_file}" || {
         log 'Could not activate the hotspot.'
         return 1
     }
-    show_qr "$secret_file" || log 'Could not show the Wi-Fi QR code.'
+    show_qr "${secret_file}" || log 'Could not show the Wi-Fi QR code.'
 }
 
 [ "$(id -u)" -eq 0 ] || exit 1
@@ -180,4 +184,4 @@ is_upstream "${CONNECTION_UUID-}" || exit 0
 # unit and return at once. flock serializes overlapping events.
 systemd-run --quiet --no-block --collect \
     --description='Synchronize the hotspot with its upstream connections' \
-    "$(command -v flock)" "$LOCK" "$(readlink -f -- "$0")" --reconcile
+    "$(command -v flock)" "${LOCK}" "$(readlink -f -- "$0")" --reconcile

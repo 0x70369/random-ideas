@@ -1,13 +1,16 @@
-#!/bin/env bash
+#!/bin/bash
 #
 # alienware-balanced: profile script.
 # The shared code, and why it works this way, is in alienware-common/power-policy.bash.
 #
+# shellcheck source=/dev/null
 . /usr/lib/tuned/functions
-. "$(dirname "$(readlink -f "$0")")/../alienware-common/power-policy.bash"
+# shellcheck source=/dev/null
+. "${0%/*}/../alienware-common/power-policy.bash"
 
 start() {
-    # Platform profile, then PL1, PL2 and PL4 in W, and the PL1 time window (Tau) in s.
+    # Platform profile, then PL1, PL2 and PL4 in W, and the PL1 time window (Tau) in s
+    # (0 keeps the firmware's).
     # Applied in the background, after the firmware delay.
     schedule_power_policy balanced 55 86 160 64
     return 0

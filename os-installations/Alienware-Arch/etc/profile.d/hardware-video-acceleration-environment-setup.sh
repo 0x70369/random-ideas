@@ -13,6 +13,7 @@
 message() {
     case $- in
         *i*) printf '%s\n' "$*" ;;
+        *) ;;
     esac
 }
 
@@ -21,61 +22,31 @@ err() {
     printf '%s\n' "$*" >&2
 }
 
-message ""
-
-
 # -----------------------------------------------------
 # Hardware Video Acceleration - Vulkan
 # -----------------------------------------------------
 
-# Function to set the MESA_VK_DEVICE_SELECT variable dynamically
-# I created this so the system can automatically select the best available GPU,
-# even when I'm doing PCI passthrough for VMs.
+# Select the Vulkan GPU by vendor priority (AMD, Intel, NVIDIA) among the GPUs
+# that have a render node, so a GPU handed to a VM (vfio-pci, no render node)
+# is skipped. The IDs come from sysfs: running vulkaninfo here would wake the
+# NVIDIA GPU from RTD3 on every login, and cost a fraction of a second.
 ## https://wiki.archlinux.org/title/Vulkan#Switching_between_devices
 set_mesa_vk_device() {
-
     unset MESA_VK_DEVICE_SELECT
-
-    # Make sure vulkaninfo is installed
-    if ! command -v vulkaninfo >/dev/null 2>&1; then
-        err "vulkaninfo not found. Did you install it?"
-        return 1
-    fi
-
-    # Get available devices
-    vk_devices=$(env LC_ALL=C MESA_VK_DEVICE_SELECT=list vulkaninfo 2>&1)
-
-    # Print an error if none are found
-    if [ -z "$vk_devices" ]; then
-        err "Failed to list Vulkan devices."
-        return 1
-    fi
-
-    # Extract vendorID:deviceID from the output of vulkaninfo
-    # If you won't change your hardware and/or do stuff like PCI passthrough, you can
-    # hard-code the correct values instead of fetching them, which will speed up the functions's execution.
-
-    # You may need to change the way this function extracts the values
-    # from vk_devices if you have multiple GPUs from the same vendor.
-
-    ### nvidia_id=$(grep -Eo "10de:[0-9a-f]{4}" <<< "$vk_devices" | head -n1) # Bash equivalent of the operation done below, kept for archival purposes.
-    # The "\" in front of grep is to escape the alias. An alternative is to pass the absolute path, e.g. /bin/grep
-    amd_id=$(echo "$vk_devices" | \grep -Eo "1002:[0-9a-f]{4}" | head -n1)
-    intel_id=$(echo "$vk_devices" | \grep -Eo "8086:[0-9a-f]{4}" | head -n1)
-    nvidia_id=$(echo "$vk_devices" | \grep -Eo "10de:[0-9a-f]{4}" | head -n1)
-
-    # Set the GPU used for Vulkan
-    ## Remove and/or change the order of the vendors according to your system's
-    ## configuration, in order to speed up the function's execution.
-    for var in "$amd_id" "$intel_id" "$nvidia_id"; do
-        if [ -n "$var" ]; then
-            export MESA_VK_DEVICE_SELECT="$var"
-            message "MESA_VK_DEVICE_SELECT set to $MESA_VK_DEVICE_SELECT"
-            break
-        fi
+    for vendor in 0x1002 0x8086 0x10de; do
+        for node in /sys/class/drm/renderD*; do
+            read -r found 2>/dev/null < "${node}/device/vendor" || continue
+            [ "${found}" = "${vendor}" ] || continue
+            read -r device < "${node}/device/device" || continue
+            # Mesa's format: vendor:device, in hex without "0x"
+            export MESA_VK_DEVICE_SELECT="${vendor#0x}:${device#0x}"
+            message "MESA_VK_DEVICE_SELECT set to ${MESA_VK_DEVICE_SELECT}"
+            unset vendor node found device
+            return 0
+        done
     done
-
-    unset vk_devices amd_id intel_id nvidia_id var
+    unset vendor node found device
+    err "No GPU with a render node found; Vulkan picks one by itself."
 }
 set_mesa_vk_device
 
@@ -115,8 +86,6 @@ export ANV_DEBUG=video-decode,video-encode
 # regardless of which GPU was selected for Vulkan)
 export mesa_glthread=true
 
-
-message ""
 
 
 # -----------------------------------------------------

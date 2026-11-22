@@ -1,4 +1,4 @@
-#!/bin/env sh
+#!/bin/sh
 
 # libvirt hook: keep the host off the CPUs reserved for the VMs below while they run.
 ## https://libvirt.org/hooks.html
@@ -17,15 +17,15 @@ host_cpus_all="0-31"
 
 set_host_cpus() {
     for unit in system.slice user.slice init.scope; do
-        systemctl set-property --runtime -- "$unit" AllowedCPUs="$1"
+        systemctl set-property --runtime -- "${unit}" AllowedCPUs="$1"
     done
 }
 
-case "$OBJECT" in
+case "${OBJECT}" in
     "Bosta11-bare-metal"|"Bosta10")
-        case "$OPERATION" in
-            prepare) set_host_cpus "$host_cpus_vm_running" ;;
-            release) set_host_cpus "$host_cpus_all" ;;
+        case "${OPERATION}" in
+            prepare) set_host_cpus "${host_cpus_vm_running}" ;;
+            release) set_host_cpus "${host_cpus_all}" ;;
             *) exit 0 ;;
         esac
         ;;
