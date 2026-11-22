@@ -15,20 +15,14 @@ case ${1:-} in
 esac
 [ -d "${game}" ] || { echo "Game folder not found: ${game}" >&2; exit 1; }
 
-# $1 = mod map, $2 = game map. Back up the original, then link.
+# $1 = mod map, $2 = game map. Link, backing up the original (a newer one
+# from a game update replaces an old backup).
 link() {
     if [ -L "$2" ]; then
         echo "Already linked: ${2##*/}"
-        return
+    else
+        ln -bsv -S .bak -- "$1" "$2"
     fi
-    if [ -e "$2" ] && [ ! -e "$2.bak" ]; then
-        mv -v -- "$2" "$2.bak"
-    fi
-    if [ -e "$2" ]; then
-        echo "Skipped, ${2##*/} and its backup both exist." >&2
-        return
-    fi
-    ln -sv -- "$1" "$2"
 }
 
 # $1 = game map. Remove the link, then restore the original.

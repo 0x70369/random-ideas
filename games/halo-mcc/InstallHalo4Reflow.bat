@@ -33,11 +33,11 @@ for %%F in ("%MOD_DIR%\*.map") do call :RESTORE "%GAME_DIR%\%%~nxF"
 pause
 exit /b
 
-:: %1 = mod map, %2 = game map. Back up the original, then link.
+:: %1 = mod map, %2 = game map. Link, backing up the original (a newer one
+:: from a game update replaces an old backup).
 :LINK
 call :IS_LINK %2 && (echo Already linked: %~nx2& exit /b)
-if exist %2 if not exist "%~2.bak" (echo Backup: %~nx2.bak& ren %2 "%~nx2.bak")
-if exist %2 (echo Skipped, %~nx2 and its backup both exist.& exit /b)
+if exist %2 (echo Backup: %~nx2.bak& move /y %2 "%~2.bak" >nul)
 mklink %2 %1
 exit /b
 
