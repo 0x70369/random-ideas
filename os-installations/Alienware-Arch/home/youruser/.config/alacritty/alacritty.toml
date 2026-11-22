@@ -1,16 +1,15 @@
-# Extra settings can be found here: https://github.com/alacritty/alacritty/blob/master/extra/man/alacritty.5.scd
-# And here: https://alacritty.org/config-alacritty.html
+# All settings: alacritty(5) and https://alacritty.org/config-alacritty.html
 
 ####################################################################
 
 [cursor]
-blink_interval = 0 # Milliseconds
+blink_interval = 500 # Milliseconds
 blink_timeout = 0
 unfocused_hollow = true
 
 [cursor.style]
 shape = "Block"
-blinking = "Always"
+blinking = "Never"
 
 ####################################################################
 
@@ -18,9 +17,9 @@ blinking = "Always"
 [font]
 size = 12.0
 
-# Bold, italic and bold italic use the same family with the matching style by default
+# Bold, italic and bold italic use the same family, with the matching style
 [font.normal]
-family = "JetBrains Mono Nerd Font"
+family = "JetBrainsMono Nerd Font"
 
 ####################################################################
 
@@ -36,9 +35,6 @@ history = 2666
 
 [window]
 opacity = 0.69
-
-#padding.x = 10
-#padding.y = 10
 
 decorations = "Full"
 decorations_theme_variant = "Dark"

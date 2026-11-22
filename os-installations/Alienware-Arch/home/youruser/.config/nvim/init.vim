@@ -7,23 +7,19 @@
 " by Stephan Raabe (2023)
 " -----------------------------------------------------
 
-" Not set here because they are already Neovim's defaults: nocompatible, hlsearch, incsearch,
-" autoindent, ttyfast, "filetype plugin indent on" and "syntax on". See :help nvim-defaults
+" Not set here because they are already Neovim's defaults: nocompatible,
+" hlsearch, incsearch, autoindent, ttyfast, "filetype plugin indent on" and
+" "syntax on". See :help nvim-defaults
 set showmatch               " show matching
 set ignorecase              " case insensitive
 set tabstop=4               " number of columns occupied by a tab
-set softtabstop=4           " see multiple spaces as tabstops so <BS> does the right thing
+set softtabstop=4           " <BS> deletes 4 spaces as one tab
 set expandtab               " converts tabs to white space
 set shiftwidth=4            " width for autoindents
 set number                  " add line numbers
 set wildmode=longest,list   " get bash-like tab completions
-set mouse=a                 " mouse in all modes (the default leaves out the command line)
+set mouse=a                 " mouse in all modes, command line too
 set clipboard=unnamedplus   " using system clipboard
-" set cc=80                   " set an 80 column border for good coding style
-" set cursorline              " highlight current cursorline
-" set spell                 " enable spell check (may need to download language package)
-" set noswapfile            " disable creating swap file
-" set backupdir=~/.cache/vim " Directory to store backup files.
 
 hi NonText ctermbg=none guibg=NONE
 hi Normal guibg=NONE ctermbg=NONE

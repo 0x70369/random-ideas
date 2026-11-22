@@ -1,37 +1,19 @@
-#!/bin/env bash
-
 #
 # ~/.bash_profile
 #
 
 # DON'T CHANGE THIS FILE
-# You can define your custom configuration by adding/editing files in ~/.config/bashprofile.d
+# Add or edit files in ~/.config/bashprofile.d instead.
 
-# Login shells: load POSIX profile first (env for all shells)
+# Login shells: load the POSIX profile first (environment for all shells)
 # shellcheck source=/dev/null
-if [ -f "$HOME/.profile" ]; then
-    . "$HOME/.profile"
-fi
+[[ -f ~/.profile ]] && . ~/.profile
 
-if [ -d "$HOME"/.config/bashprofile.d ]; then
-    for file in "$HOME"/.config/bashprofile.d/*.bash; do
-        [ -f "$file" ] && [ -r "$file" ] && [ -s "$file" ] || continue
+for file in ~/.config/bashprofile.d/*.bash; do
+    [[ -r ${file} ]] || continue
+    . "${file}" || printf 'Failed to load: %s\n' "${file}" >&2
+done
+unset file
 
-        if ! . "$file"; then
-            printf 'Failed to load: %s\n' "$file" >&2
-        fi
-    done
-
-    unset file
-else
-    mkdir -vp "$HOME/.config/bashprofile.d"
-    echo "The '~/.config/bashprofile.d' directory was created. You can customize your session by editing files there."
-fi
-
-####################################################################
-
-[ -f "$HOME"/.bashrc ] && [ -r "$HOME"/.bashrc ] && [ -s "$HOME"/.bashrc ] && . "$HOME"/.bashrc
-
-# -f checks if $file exists and it's a regular file;
-# -r checks if $file is readable;
-# -s checks if $file isn't empty;
+# shellcheck source=/dev/null
+[[ -r ~/.bashrc ]] && . ~/.bashrc

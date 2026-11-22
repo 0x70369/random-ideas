@@ -4,6 +4,8 @@
 # other apps use it).
 . "${PSScriptRoot}\common.ps1"
 
+# https://gpsearch.azurewebsites.net/?PolicyID=15671
+# https://gpsearch.azurewebsites.net/?PolicyID=14939
 foreach ($hive in 'HKLM:', 'HKCU:') {
     $pol = "${hive}\SOFTWARE\Policies\Microsoft"
     # 0 = IE disabled, users are never notified
@@ -12,7 +14,8 @@ foreach ($hive in 'HKLM:', 'HKCU:') {
     Set-RegValue "${pol}\Edge" InternetExplorerIntegrationLevel 0
 }
 
-# Same command as Microsoft's KB4013567. /NoRestart skips the Y/N prompt.
+# Same command as Microsoft's KB4013567 (DISM asks before restarting).
+# https://learn.microsoft.com/en-us/previous-versions/troubleshoot/browsers/installation/disable-internet-explorer-windows
 $capability = '/CapabilityName:Browser.InternetExplorer~~~~0.0.11.0'
 & "${env:SystemRoot}\System32\dism.exe" /Online /Remove-Capability `
     $capability

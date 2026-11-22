@@ -1,3 +1,6 @@
+0. Install [PowerShell](https://github.com/powershell/powershell) properly
+    `> winget install --id Microsoft.PowerShell --source winget --installer-type wix --exact`
+
 1. [uindols updates in PowerShell](https://christitus.com/install-windows-update-powershell/)
 
 2. [Install winget if not already present](https://christitus.com/installing-appx-without-msstore/) (can also be done with WinUtil or via the M$ store)

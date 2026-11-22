@@ -1,10 +1,11 @@
 # Noctalia (v5) configuration
 #
-# Copy this file to ~/.config/noctalia/config.toml. Changes apply when the file
-# is saved. Validate edits with `noctalia config validate`.
+# Changes apply when the file is saved. Validate edits with
+# `noctalia config validate`.
 #
-# Settings changed in the GUI are written to ~/.local/state/noctalia/settings.toml,
-# which is loaded after this file and wins. If a value here seems ignored, look there.
+# Settings changed in the GUI are written to
+# ~/.local/state/noctalia/settings.toml, which is loaded after this file and
+# wins. If a value here seems ignored, look there.
 #
 # Complete reference: https://docs.noctalia.dev/noctalia/
 # Companion compositor config: ~/.config/umbriel/config.toml
@@ -14,33 +15,26 @@
 # https://docs.noctalia.dev/noctalia/configuration/
 
 [shell]
-font_family = "Hack Nerd Font"
+font_family = "JetBrainsMono Nerd Font"
 # Without Plasma there is no polkit agent; Noctalia provides one.
 polkit_agent = true
+# Already the default; kept explicit for privacy.
 telemetry_enabled = false
-time_format = "{:%H:%M}"
-ui_scale = 1.0
 # Umbriel overview integration: type to search apps, close it after launching.
 umbriel_overview_close_on_launch_enabled = true
 umbriel_overview_type_to_launch_enabled = true
 
-[shell.animation]
-enabled = true
-speed = 1.0
-
-# Same idea as the compositor's shadow: wide, soft, no offset (ML4W look).
+# Same idea as the compositor's shadow: no offset (ML4W look).
 [shell.shadow]
 alpha = 0.4
-blur = 24
-offset_x = 0
-offset_y = 0
+direction = "center"
 
+# Every panel floats (the launcher and clipboard already do by default), with
+# translucent, blurred backgrounds (blur comes from the Umbriel layer rule).
 [shell.panel]
-attach_clipboard = false
-attach_control_center = false
-attach_launcher = false
-attach_wallpaper = false
-background_blur = true
+control_center_placement = "floating"
+transparency_mode = "glass"
+wallpaper_placement = "floating"
 
 [osd]
 position = "bottom_center"
@@ -51,7 +45,7 @@ position = "bottom_center"
 #
 # Built-in low-battery alerts, for the combined charge of the laptop's
 # batteries. Each one shows once; charging above its level re-arms it.
-#   1. warning_threshold (10%): "Battery low", normal notification.
+#   1. warning_threshold: "Battery low", normal notification.
 #   2. 5% (fixed): critical notification.
 #   3. 2% (fixed): persistent critical notification, the computer will shut
 #      down soon; stays on screen until charged or dismissed.
@@ -70,9 +64,6 @@ warning_threshold = 30
 
 [theme]
 builtin = "Dracula"
-mode = "dark"
-source = "builtin"
-# wallpaper_scheme = "m3-content" # Used when source = "wallpaper".
 
 # ==============================================================================
 # Bar
@@ -115,6 +106,20 @@ end = [
   "media",
   "tray",
   "keyboard_layout",
+  "volume",
+  "notifications",
+  "control-center",
+  "session",
+]
+
+# The laptop's own panel also gets the laptop-only widgets. `match` is a
+# connector name or part of the monitor description.
+[bar.default.monitor.laptop]
+match = "eDP-1"
+end = [
+  "media",
+  "tray",
+  "keyboard_layout",
   "cpu",
   "ram",
   "network",
@@ -128,26 +133,12 @@ end = [
   "session",
 ]
 
-# External displays: a shorter list, without the laptop-only widgets.
-# `match` is a connector name or part of the monitor description.
-[bar.default.monitor.lg]
-match = "LG"
-end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
-
-[bar.default.monitor.samsung]
-match = "SAMSUNG"
-end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
-
-[bar.default.monitor.toshiba]
-match = "Toshiba"
-end = ["media", "tray", "keyboard_layout", "volume", "notifications", "control-center", "session"]
-
 # ==============================================================================
 # Widgets
 # https://docs.noctalia.dev/noctalia/bar/widgets/
 #
-# A name in the bar lists that has no [widget.<name>] entry is used as the widget
-# type with its defaults. Middle-click a widget to open its settings.
+# A name in the bar lists that has no [widget.<name>] entry is used as the
+# widget type with its defaults. Middle-click a widget to open its settings.
 
 [widget.clock]
 format = "{:%Y/%m/%d - %A - %H:%M}"
@@ -184,27 +175,18 @@ middle = "volume-mute"
 # Wallpaper
 # https://docs.noctalia.dev/noctalia/desktop/wallpaper/
 #
-# An empty directory means the XDG Pictures folder.
+# Wallpapers come from the XDG Pictures folder.
 
 [wallpaper]
-enabled = true
-directory = ""
-fill_mode = "crop"
 transition = ["fade", "wipe", "disc"]
 transition_duration = 1000
-transition_on_startup = false
-
-[wallpaper.automation]
-enabled = false
-interval_seconds = 1800
-order = "random"
 
 # ==============================================================================
 # Idle
 # https://docs.noctalia.dev/noctalia/services/idle/
 #
-# Lock, then turn the displays off. Suspend stays with systemd-logind (lid, power
-# key), as in the Umbriel config. Video players and games inhibit idle themselves.
+# Lock, then turn the displays off. Suspend stays with systemd-logind (lid,
+# power key). Video players and games inhibit idle themselves.
 
 [idle]
 behavior_order = ["lock", "screen-off"]
@@ -225,20 +207,14 @@ timeout = 660
 # Night light
 # https://docs.noctalia.dev/noctalia/services/
 #
-# Off by default. With enabled = true it needs a schedule: fixed times as below,
-# or a location (see [location] in the docs).
+# Warmer screen from 17:00 to 08:00. The schedule lives in [location], which
+# also feeds the weather and the theme's automatic mode.
 
 [nightlight]
 enabled = true
-temperature_day = 6500
 temperature_night = 5200
-start_time = "17:00"
-stop_time = "08:00"
 
-# ==============================================================================
-# Hooks
-# https://docs.noctalia.dev/v5/automation/hooks/
-#
-# None needed. Low battery: Noctalia warns by itself at [battery]
-# warning_threshold (default 10%), then at 5% and 2%. Power profile on AC and
-# battery: tuned-ppd switches it (battery_detection in /etc/tuned/ppd.conf).
+[location]
+custom_schedule = true
+sunset = "17:00"
+sunrise = "08:00"

@@ -8,6 +8,9 @@ Set-RegValue $wu ExcludeWUDriversInQualityUpdate 1
 $ux = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'
 Set-RegValue $ux ExcludeWUDriversInQualityUpdate 1
 
+# https://gpsearch.azurewebsites.net/?PolicyID=181
+# https://gpsearch.azurewebsites.net/?PolicyID=4721
+# https://gpsearch.azurewebsites.net/?PolicyID=183
 $ds = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching'
 Set-RegValue $ds DontPromptForWindowsUpdate 1
 Set-RegValue $ds DontSearchWindowsUpdate 1

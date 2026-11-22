@@ -38,6 +38,9 @@ Set-RegValue "${cv}\Explorer\OperationStatusManager" EnthusiastMode 1
 
 $ex = 'HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer'
 # 1 restores the old balloons on Windows 10, but not on Windows 11
+# https://gpsearch.azurewebsites.net/?PolicyID=10931
+# https://gpsearch.azurewebsites.net/?PolicyID=13710
+# https://gpsearch.azurewebsites.net/?PolicyID=4688
 Set-RegValue $ex EnableLegacyBalloonNotifications 0
 Set-RegValue $ex HidePeopleBar 1
 Set-RegValue $ex NoBalloonFeatureAdvertisements 1
