@@ -1,5 +1,3 @@
-#!/bin/env sh
-
 # Colors for man pages and other text shown by less(1), used when no other
 # MANPAGER is selected. This can't go in environment.d(5), which doesn't
 # interpret escape sequences, so printf generates the escape character here.

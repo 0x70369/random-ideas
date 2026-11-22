@@ -1,4 +1,3 @@
-#!/bin/env bash
 
 # -----------------------------------------------------
 # Notes
@@ -134,8 +133,6 @@ if command_exists multitail; then
 fi
 
 alias rebuild-initramfs="sudo mkinitcpio -P"
-## Be smart, use topgrade instead of a stupidly long and convoluted alias
-#alias upgrade-system="sudo pacman -Syu; echo; flatpak upgrade; echo; flatpak uninstall --unused; echo; sudo -u mr_robot yay -Syu; echo; pipx upgrade-all; echo; sudo fwupdmgr get-updates; sudo sync"
 
 # -----------------------------------------------------
 # Convenience stuff
@@ -174,7 +171,8 @@ alias count-files='for t in f:files l:links d:directories; do printf "%s %s\n" "
 
 # Aliases for archives
 alias tar="tar -a --acls --selinux --xattrs --totals --checkpoint=.10000"
-# tar's "-a" parameter enables archive format autodetection.
+# tar's "-a" picks the compression from the archive's suffix when creating
+# one; reading detects it by itself.
 
 # --checkpoint=.10000 makes tar print a dot on stdout after processing
 # 10000 records (by default, each record is 10 KiB), or 100 MiB.
